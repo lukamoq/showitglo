@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Swords } from "lucide-react";
-import { formatUSD } from "@/lib/utils";
+import { formatCents, formatUSD } from "@/lib/utils";
 import { Category, RankedPostView } from "@/lib/types";
 import { LiveVisitorsBadge } from "../live/LiveVisitorsBadge";
 
@@ -178,7 +178,7 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
                             {post.title}
                           </span>
                           <span className="mt-1 block text-meta text-ink-3 tnum">
-                            {formatUSD(post.total_raised_cents)} backed ·{" "}
+                            {formatCents(post.total_raised_cents)} backed ·{" "}
                             {post.backers_count.toLocaleString()}{" "}
                             {post.backers_count === 1 ? "backer" : "backers"}
                           </span>
