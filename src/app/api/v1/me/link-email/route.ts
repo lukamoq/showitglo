@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
@@ -57,9 +58,11 @@ export async function POST(request: NextRequest) {
     const user = await getOrCreateSessionUser();
     const ip = getClientIp(request);
 
+    // Hash the IP — raw addresses must not persist in rate buckets.
+    const ipKey = createHash('sha256').update(ip, 'utf8').digest('hex').slice(0, 32);
     const [perUser, perIp] = await Promise.all([
       checkDbRateLimit(`linkmail:u:${user.id}`, 3, 3600),
-      checkDbRateLimit(`linkmail:ip:${ip}`, 10, 3600),
+      checkDbRateLimit(`linkmail:ip:${ipKey}`, 10, 3600),
     ]);
     if (!perUser.allowed || !perIp.allowed) {
       return rateLimited(

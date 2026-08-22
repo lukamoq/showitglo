@@ -106,7 +106,6 @@ export default function InsightsPage() {
       <div className="flex-1 w-full">
         {/* Header */}
         <div className="relative pt-10 pb-8 sm:pt-14 sm:pb-10">
-          <div className="orb orb-gold -top-64 -left-40 opacity-70" aria-hidden />
 
           <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="kicker kicker-gold flex items-center gap-2">
@@ -209,7 +208,7 @@ export default function InsightsPage() {
                         <strong className="text-ink-2 font-semibold">
                           {formatCents(war.total_money_raised_cents)}
                         </strong>{' '}
-                        · {war.total_distinct_backers} backers
+                        · {war.total_distinct_backers} backer{war.total_distinct_backers === 1 ? '' : 's'}
                       </span>
                     </div>
 
@@ -223,7 +222,7 @@ export default function InsightsPage() {
                             {f.percentage}%
                           </div>
                           <div className="text-meta text-ink-3 tnum mt-1.5">
-                            {formatCents(f.total_cents)} · {f.backers_count} backers
+                            {formatCents(f.total_cents)} · {f.backers_count} backer{f.backers_count === 1 ? '' : 's'}
                           </div>
                         </div>
                       ))}

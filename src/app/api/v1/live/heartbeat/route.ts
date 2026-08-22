@@ -1,7 +1,8 @@
-import { createHash } from 'crypto';
+import { createHmac } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getPresenceCount, heartbeat } from '@/lib/db/store';
+import { getSessionSecret } from '@/lib/env';
 import { assertSameOrigin, getSessionUser, presenceKeyFor } from '@/lib/session';
 import { getClientIp, rateLimiter } from '@/lib/rateLimit';
 import { badOrigin, failure, rateLimited } from '@/lib/http';
@@ -11,14 +12,18 @@ export const dynamic = 'force-dynamic';
 /**
  * Presence key for a visitor with no session cookie yet.
  *
- * Hashed so the presence table never stores a raw address, and truncated
- * because 128 bits is already far more than enough to keep two visitors
- * apart for a 90-second window.
+ * HMAC'd under SESSION_SECRET, not plain-hashed: the IPv4+user-agent keyspace
+ * is small enough to brute-force from a table dump, so an unkeyed hash would
+ * be pseudonymous in name only. With the secret in the mix, a leaked
+ * presence table reveals nothing.
  */
 function anonymousPresenceKey(request: NextRequest): string {
   const ip = getClientIp(request);
   const agent = request.headers.get('user-agent') || 'unknown';
-  return createHash('sha256').update(`presence:${ip}:${agent}`).digest('hex').slice(0, 32);
+  return createHmac('sha256', getSessionSecret())
+    .update(`presence:${ip}:${agent}`)
+    .digest('hex')
+    .slice(0, 32);
 }
 
 /**

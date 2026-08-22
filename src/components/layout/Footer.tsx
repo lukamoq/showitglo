@@ -38,6 +38,7 @@ export const Footer: React.FC = () => {
         <div className="space-y-2">
           <h4 className="kicker">Trust &amp; Legal</h4>
           <ul className="space-y-1.5">
+            <li><Link href="/terms" className="text-dense text-ink-3 hover:text-ink transition-colors">Terms of Service</Link></li>
             <li><Link href="/privacy" className="text-dense text-ink-3 hover:text-ink transition-colors">Privacy Policy (GDPR / FADP)</Link></li>
             <li><Link href="/impressum" className="text-dense text-ink-3 hover:text-ink transition-colors">Impressum (Legal Disclosure)</Link></li>
             <li><span className="text-dense text-ink-3/70">Gate 0 Moderation &amp; Tombstones</span></li>
@@ -59,6 +60,8 @@ export const Footer: React.FC = () => {
       <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-4 text-meta text-ink-3">
         <div className="flex items-center gap-2">
           <span>© 2026 MomentumQ GmbH. All rights reserved.</span>
+          <span aria-hidden className="text-ink-3/50">·</span>
+          <Link href="/terms" className="hover:text-ink transition-colors">Terms</Link>
           <span aria-hidden className="text-ink-3/50">·</span>
           <Link href="/privacy" className="hover:text-ink transition-colors">Privacy Policy</Link>
           <span aria-hidden className="text-ink-3/50">·</span>

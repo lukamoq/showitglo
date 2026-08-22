@@ -8,9 +8,11 @@ import {
   getRealEmailForUser,
   getWallet,
   isStoreError,
+  logAudit,
   releaseWalletIntent,
   reserveWalletHeadroom,
 } from '@/lib/db/store';
+import { WITHDRAWAL_CONSENT_REQUIRED_MESSAGE, WITHDRAWAL_CONSENT_VERSION } from '@/lib/consent';
 import { TOPUP_MAX_CENTS, TOPUP_MIN_CENTS, WALLET_MAX_CENTS, isValidTopupAmount } from '@/lib/pricing';
 import { maskEmail } from '@/lib/email';
 import { failure, optionalEmailField } from '@/lib/http';
@@ -30,6 +32,11 @@ export const dynamic = 'force-dynamic';
  * too late to refuse the funds. The ceiling counts intents already in flight,
  * not just the settled balance: unsettled intents are money the webhook will be
  * obliged to credit, so ignoring them makes the ceiling advisory at best.
+ *
+ * It is also where the EU withdrawal waiver is taken. The tick is a hard
+ * precondition of the charge and is written to the audit log before Stripe is
+ * called, because the only version of that record worth having is one that
+ * cannot be missing for a payment that went through.
  */
 export async function POST(request: NextRequest) {
   if (!assertSameOrigin(request)) {
@@ -61,6 +68,20 @@ export async function POST(request: NextRequest) {
         min_cents: TOPUP_MIN_CENTS,
         max_cents: TOPUP_MAX_CENTS,
       },
+      { status: 400 }
+    );
+  }
+
+  // The EU withdrawal waiver. Checked here, server-side, because a checkbox
+  // that only exists in the browser is not evidence of anything: an EU consumer
+  // keeps the 14-day right unless they expressly asked for immediate delivery
+  // AND acknowledged the consequence, and the burden of showing they did is
+  // ours. `!== true` rather than a truthiness test — "true", 1 and {} are not
+  // consent, they are a client that guessed.
+  const withdrawalConsent = (body as { withdrawal_consent?: unknown })?.withdrawal_consent;
+  if (withdrawalConsent !== true) {
+    return NextResponse.json(
+      { error: WITHDRAWAL_CONSENT_REQUIRED_MESSAGE, code: 'CONSENT_REQUIRED' },
       { status: 400 }
     );
   }
@@ -109,6 +130,23 @@ export async function POST(request: NextRequest) {
     const linkedEmail = await getRealEmailForUser(user.id);
     const receiptEmail = linkedEmail ?? requestedReceiptEmail.value;
 
+    // The consent record, written BEFORE the card is touched. Ordering matters:
+    // if this insert came after the charge, a crash in between would leave a
+    // customer who paid and has no evidence row, which is the one state we
+    // cannot argue our way out of. The reservation id is also stamped on the
+    // PaymentIntent below, so a charge in the Stripe dashboard traces back to
+    // exactly this row. Nothing about the payer beyond id, amount and time goes
+    // in it — an evidence record is not a profiling opportunity.
+    await logAudit({
+      actor_id: user.id,
+      actor_type: 'user',
+      action: 'topup_consent',
+      entity_type: 'wallet_intent',
+      entity_id: headroom.reservationId,
+      detail: { amount_cents: amountCents, consent_version: WITHDRAWAL_CONSENT_VERSION },
+      ip_hash: null,
+    });
+
     let paymentIntent: Stripe.PaymentIntent;
     try {
       const stripe = new Stripe(stripeSecretKey);
@@ -117,7 +155,15 @@ export async function POST(request: NextRequest) {
         currency: 'usd',
         automatic_payment_methods: { enabled: true },
         ...(receiptEmail ? { receipt_email: receiptEmail } : {}),
-        metadata: { user_id: user.id, purpose: 'wallet_topup', app: 'showitglo' },
+        metadata: {
+          user_id: user.id,
+          purpose: 'wallet_topup',
+          app: 'showitglo',
+          // Points at the `topup_consent` audit row for this charge, so a
+          // chargeback can be answered from the Stripe dashboard alone.
+          consent_ref: headroom.reservationId,
+          consent_version: WITHDRAWAL_CONSENT_VERSION,
+        },
       });
     } catch (err) {
       // No intent exists, so nothing can ever settle against this reservation.
@@ -132,6 +178,7 @@ export async function POST(request: NextRequest) {
       amount_cents: amountCents,
       pending_topup_cents: headroom.pendingCents,
       payment_intent_id: paymentIntent.id,
+      consent_version: WITHDRAWAL_CONSENT_VERSION,
       receipt_to: receiptEmail ? maskEmail(receiptEmail) : null,
       receipt_source: linkedEmail ? 'linked' : requestedReceiptEmail.value ? 'request' : 'none',
       outcome: 'ok',

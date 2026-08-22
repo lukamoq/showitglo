@@ -21,7 +21,6 @@ export default function ErrorBoundary({
       <Navbar />
 
       <main className="flex-1 flex items-center justify-center px-4 py-16 relative">
-        <div className="orb orb-ruby top-1/4 right-1/4 opacity-40" aria-hidden />
 
         <div className="relative z-10 max-w-md w-full panel rounded-card p-8 text-center space-y-6 animate-rise">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full sunken mx-auto text-down">

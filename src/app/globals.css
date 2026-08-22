@@ -5,28 +5,36 @@
 /* ==========================================================================
    ShowItGlo — "The Trading Floor for Conviction"
    Dark-only market-instrument language. See DESIGN.md for the contract.
+
+   Rev 2 (modernisation pass): the ground is ONE deep solid slab with a single
+   top-edge gold wash — no dot lattice, no counter-light, no drifting orbs.
+   Surfaces are opaque and machined (hairline + layered shadow), not smeared
+   glass. Blur is reserved for the two places content actually passes behind
+   something: the sticky rail and modal scrims.
+
    Layers: 1 tokens · 2 base · 3 surfaces · 4 controls · 5 text roles ·
-           6 ambience/motion · 7 legacy aliases (pre-sweep compatibility)
+           6 motion · 7 legacy aliases (pre-sweep compatibility)
    ========================================================================== */
 
 /* 1 · TOKENS ------------------------------------------------------------- */
 
 :root {
   /* ground + surfaces (RGB triples so Tailwind can inject alpha) */
-  --bg: 10 11 16;            /* #0A0B10 */
-  --panel: 19 23 34;         /* #131722 */
-  --panel-alpha: 0.72;
-  --card: 24 29 42;          /* #181D2A */
-  --card-alpha: 0.62;
-  --elevated: 35 41 57;      /* #232939 */
+  --bg: 9 10 14;             /* #090A0E — deep, cool, never #000 */
+  --bg-sunken: 5 6 9;        /* #050609 — wells, recessed inputs */
+  --panel: 18 20 27;         /* #12141B */
+  --panel-alpha: 1;
+  --card: 22 25 33;          /* #161921 */
+  --card-alpha: 1;
+  --elevated: 32 36 47;      /* #20242F */
   --line: 255 255 255;
-  --line-alpha: 0.10;
-  --line-strong-alpha: 0.18;
+  --line-alpha: 0.08;
+  --line-strong-alpha: 0.16;
 
   /* ink */
-  --ink: 246 247 250;        /* #F6F7FA */
-  --ink-2: 199 205 216;      /* #C7CDD8 */
-  --ink-3: 138 146 163;      /* #8A92A3 */
+  --ink: 244 246 250;        /* #F4F6FA */
+  --ink-2: 190 196 208;      /* #BEC4D0 */
+  --ink-3: 130 137 150;      /* #828996 */
 
   /* the accent — gold, the only color money makes */
   --gold: 240 168 36;        /* #F0A824 */
@@ -40,10 +48,24 @@
   --info: 94 160 255;        /* #5EA0FF */
   --steel: 154 163 181;      /* #9AA3B5 */
 
-  /* structure */
-  --dot: rgba(255, 255, 255, 0.045);
-  --overlay: rgba(4, 6, 12, 0.65);
-  --shadow-strength: 0.55;
+  /* elevation — layered, one light source, real vertical offset */
+  --shadow-1: 0 1px 2px -1px rgb(0 0 0 / 0.6);
+  --shadow-2:
+    0 1px 1px rgb(0 0 0 / 0.32),
+    0 4px 10px -4px rgb(0 0 0 / 0.5);
+  --shadow-3:
+    0 1px 1px rgb(0 0 0 / 0.35),
+    0 8px 18px -8px rgb(0 0 0 / 0.5),
+    0 24px 40px -20px rgb(0 0 0 / 0.6);
+  --shadow-4:
+    0 1px 1px rgb(0 0 0 / 0.4),
+    0 12px 28px -10px rgb(0 0 0 / 0.55),
+    0 40px 72px -32px rgb(0 0 0 / 0.7);
+
+  /* the 1px light edge that sells a machined surface */
+  --specular: inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+
+  --overlay: rgba(3, 4, 8, 0.72);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 
   color-scheme: dark;
@@ -61,48 +83,64 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     font-optical-sizing: auto;
+    background-color: rgb(var(--bg));
   }
 
   body {
+    position: relative;
     background-color: rgb(var(--bg));
     color: rgb(var(--ink));
-    font-family: 'Figtree', var(--font-figtree, 'Figtree'), ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-family: var(--font-figtree), ui-sans-serif, system-ui, -apple-system, sans-serif;
     font-size: 15px;
-    line-height: 1.55;
-    letter-spacing: -0.01em;
+    line-height: 1.6;
+    letter-spacing: -0.011em;
     font-variant-numeric: tabular-nums;
     overflow-x: hidden;
     min-height: 100vh;
-    /* stage light: gold spotlight, crimson counter-light, 24px dot lattice */
-    background-image:
-      radial-gradient(ellipse 85% 55% at 50% -18%, rgb(var(--gold) / 0.10), transparent 70%),
-      radial-gradient(ellipse 60% 45% at 92% 105%, rgb(var(--down) / 0.06), transparent 65%),
-      radial-gradient(circle, var(--dot) 1px, transparent 1.5px);
-    background-size: 100% 760px, 100% 640px, 24px 24px;
-    background-repeat: no-repeat, no-repeat, repeat;
-    background-attachment: fixed, fixed, fixed;
+  }
+
+  /* The ONE atmospheric device: a stage light on the top edge. Fixed, so it
+     stays with the viewport instead of scrolling away, and it fades out well
+     before the fold — nothing else is painted on the ground. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 620px;
+    pointer-events: none;
+    /* Negative z-index paints above the body background box and below every
+       in-flow descendant, so no page wrapper needs a stacking context. */
+    z-index: -1;
+    background: radial-gradient(
+      110% 100% at 50% -32%,
+      rgb(var(--gold) / 0.085) 0%,
+      rgb(var(--gold) / 0.03) 38%,
+      transparent 72%
+    );
   }
 
   ::selection {
-    background: rgb(var(--gold) / 0.30);
-    color: #fff;
+    background: rgb(var(--gold) / 0.28);
+    color: rgb(var(--ink));
   }
 
   :focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px rgb(var(--bg)), 0 0 0 4px rgb(var(--gold));
+    box-shadow:
+      0 0 0 2px rgb(var(--bg)),
+      0 0 0 4px rgb(var(--gold));
   }
 
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
-    background: rgb(var(--line) / 0.16);
+    background: rgb(var(--line) / 0.14);
     border-radius: 999px;
     border: 3px solid transparent;
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgb(var(--gold) / 0.5);
+    background: rgb(var(--line) / 0.26);
     background-clip: content-box;
   }
 }
@@ -113,42 +151,39 @@
   .panel, .card, .sunken, .btn, .chip, .seg { position: relative; }
 }
 
+/* The instrument slab: opaque, hairline-ruled, one directional shadow. */
 .panel {
   background: rgb(var(--panel) / var(--panel-alpha));
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgb(var(--line) / 0.12);
-  box-shadow:
-    0 20px 50px -12px rgb(2 4 10 / var(--shadow-strength)),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.10);
+  border: 1px solid rgb(var(--line) / var(--line-alpha));
+  box-shadow: var(--shadow-3), var(--specular);
 }
 
+/* A quieter slab for nested readouts. */
 .card {
   background: rgb(var(--card) / var(--card-alpha));
-  backdrop-filter: blur(20px) saturate(170%);
-  -webkit-backdrop-filter: blur(20px) saturate(170%);
   border: 1px solid rgb(var(--line) / var(--line-alpha));
-  box-shadow:
-    0 10px 30px -10px rgb(2 4 10 / calc(var(--shadow-strength) * 0.8)),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.08);
-  transition: border-color 0.2s var(--ease-out), background-color 0.2s var(--ease-out);
+  box-shadow: var(--shadow-2), var(--specular);
+  transition: border-color 0.18s var(--ease-out), background-color 0.18s var(--ease-out);
 }
 
+/* Recessed well — inputs, meters, quoted bodies. Reads cut *into* the slab. */
 .sunken {
-  background: rgb(0 0 0 / 0.32);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgb(var(--bg-sunken) / 0.85);
+  border: 1px solid rgb(var(--line) / 0.06);
+  box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.45);
+}
+
+/* Blur belongs only where content passes behind: the rail and modal scrims. */
+.glass {
+  background: rgb(var(--panel) / 0.82);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   border: 1px solid rgb(var(--line) / var(--line-alpha));
+  box-shadow: var(--shadow-4), var(--specular);
 }
 
 .hairline-top {
-  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.10);
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .panel { background: #131722; }
-  .card { background: #181D2A; }
-  .sunken { background: #0B0D14; }
+  box-shadow: var(--specular);
 }
 
 /* 4 · CONTROLS ------------------------------------------------------------ */
@@ -160,8 +195,9 @@
   gap: 0.5rem;
   font-weight: 600;
   font-size: 0.875rem;
-  border-radius: 0.625rem;              /* rounded-control */
-  padding: 0.625rem 1.125rem;
+  line-height: 1.2;
+  border-radius: 0.5rem;                /* rounded-control */
+  padding: 0.5625rem 1rem;
   white-space: nowrap;
   user-select: none;
   cursor: pointer;
@@ -169,117 +205,132 @@
     transform 0.15s var(--ease-out),
     background-color 0.15s var(--ease-out),
     border-color 0.15s var(--ease-out),
-    box-shadow 0.2s var(--ease-out),
+    color 0.15s var(--ease-out),
+    box-shadow 0.15s var(--ease-out),
     opacity 0.15s var(--ease-out);
 }
 .btn:active:not(:disabled) { transform: scale(0.97); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-sm { padding: 0.4375rem 0.875rem; font-size: 0.8125rem; }
-.btn-xs { padding: 0.3125rem 0.625rem; font-size: 0.75rem; border-radius: 0.5rem; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-sm { padding: 0.4375rem 0.8125rem; font-size: 0.8125rem; }
+.btn-xs { padding: 0.3125rem 0.625rem; font-size: 0.75rem; border-radius: 0.375rem; }
 
+/* Touch targets. The dense ledger rows earn their density on a mouse; on a
+   finger they need a floor, and `min-height` gives it without re-flowing the
+   desktop layout. */
+@media (pointer: coarse) {
+  .btn { min-height: 44px; min-width: 44px; }
+  .btn-sm { min-height: 42px; }
+  .btn-xs { min-height: 40px; min-width: 40px; padding-inline: 0.75rem; }
+}
+
+/* THE primary. Flat machined gold — one hairline top highlight, no halo. */
 .btn-gold {
-  background: linear-gradient(135deg, rgb(var(--gold-bright) / 0.97) 0%, rgb(var(--gold) / 0.97) 55%, rgb(var(--gold-deep) / 0.97) 130%);
-  border: 1px solid rgb(255 255 255 / 0.28);
-  box-shadow:
-    0 8px 24px -4px rgb(var(--gold) / 0.40),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.40);
+  background: linear-gradient(in oklab, rgb(var(--gold-bright)), rgb(var(--gold)));
+  border: 1px solid rgb(var(--gold-deep) / 0.55);
+  box-shadow: var(--shadow-1), inset 0 1px 0 0 rgb(255 255 255 / 0.32);
   color: #1A1205;
 }
 .btn-gold:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgb(255 208 92 / 0.98) 0%, rgb(var(--gold-bright) / 0.98) 55%, rgb(var(--gold) / 0.98) 130%);
-  transform: translateY(-1px);
-  box-shadow:
-    0 12px 32px -4px rgb(var(--gold) / 0.55),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.55);
+  background: linear-gradient(in oklab, rgb(255 210 96), rgb(var(--gold-bright)));
+  border-color: rgb(var(--gold-bright) / 0.7);
 }
-.btn-gold:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+.btn-gold:active:not(:disabled) { transform: scale(0.97); }
 
+/* The ONLY secondary. */
 .btn-ghost {
-  background: rgb(255 255 255 / 0.05);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgb(var(--line) / 0.12);
-  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.045);
+  border: 1px solid rgb(var(--line) / var(--line-alpha));
+  box-shadow: var(--specular);
   color: rgb(var(--ink-2));
 }
 .btn-ghost:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.09);
+  background: rgb(255 255 255 / 0.085);
   border-color: rgb(var(--line) / var(--line-strong-alpha));
   color: rgb(var(--ink));
 }
 
+/* Quietest register — no chrome until hover. */
+.btn-bare {
+  background: transparent;
+  border: 1px solid transparent;
+  color: rgb(var(--ink-3));
+}
+.btn-bare:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(var(--ink));
+}
+
 .btn-danger {
-  background: linear-gradient(135deg, rgb(var(--down) / 0.95) 0%, rgb(196 45 74 / 0.95) 100%);
-  border: 1px solid rgb(255 255 255 / 0.25);
-  box-shadow:
-    0 8px 24px -4px rgb(var(--down) / 0.35),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.30);
+  background: linear-gradient(in oklab, rgb(var(--down)), rgb(204 48 76));
+  border: 1px solid rgb(160 34 58 / 0.7);
+  box-shadow: var(--shadow-1), inset 0 1px 0 0 rgb(255 255 255 / 0.22);
   color: #fff;
 }
 .btn-danger:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgb(255 96 120 / 0.97) 0%, rgb(var(--down) / 0.97) 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 12px 32px -4px rgb(var(--down) / 0.5), inset 0 1px 0 0 rgb(255 255 255 / 0.4);
+  background: linear-gradient(in oklab, rgb(255 100 124), rgb(var(--down)));
 }
 
 /* currentColor-driven tint chip: set the tone via a text color class,
-   e.g. `chip text-gold-text`, `chip text-up`, `chip text-down`, `chip text-steel` */
+   e.g. `chip text-gold-text`, `chip text-up`, `chip text-down`, `chip text-steel`.
+   Flat fill + one hairline ring — no gradient, no specular, no glow. */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 0.3125rem;
-  border-radius: 0.375rem;
-  padding: 0.125rem 0.4375rem;
+  border-radius: 0.3125rem;
+  padding: 0.1875rem 0.4375rem;
   font-size: 10.5px;
-  line-height: 1.5;
+  line-height: 1.35;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  background: linear-gradient(
-    color-mix(in oklab, currentColor 9%, transparent),
-    color-mix(in oklab, currentColor 15%, transparent)
-  );
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.14),
-    inset 0 0 0 1px color-mix(in oklab, currentColor 30%, transparent);
+  background: color-mix(in oklab, currentColor 11%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, currentColor 22%, transparent);
+}
+
+/* Ledger-register chip: no fill, just a rule. For counts and neutral metadata. */
+.chip-quiet {
+  background: transparent;
+  color: rgb(var(--ink-3));
+  box-shadow: inset 0 0 0 1px rgb(var(--line) / var(--line-alpha));
 }
 
 .field {
   width: 100%;
-  background: rgb(0 0 0 / 0.32);
+  background: rgb(var(--bg-sunken) / 0.85);
   border: 1px solid rgb(var(--line) / var(--line-alpha));
-  border-radius: 0.625rem;
-  padding: 0.625rem 0.875rem;
+  border-radius: 0.5rem;
+  padding: 0.5625rem 0.8125rem;
   color: rgb(var(--ink));
   font-size: 0.9375rem;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  transition: border-color 0.15s var(--ease-out), box-shadow 0.15s var(--ease-out);
 }
-.field::placeholder { color: rgb(var(--ink-3) / 0.75); }
+.field::placeholder { color: rgb(var(--ink-3) / 0.7); }
 .field:focus {
   outline: none;
-  border-color: rgb(var(--gold) / 0.65);
-  box-shadow: 0 0 0 3px rgb(var(--gold) / 0.15);
+  border-color: rgb(var(--gold) / 0.6);
+  box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 0 0 3px rgb(var(--gold) / 0.14);
 }
 
 .seg {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: 0.625rem;
-  background: rgb(0 0 0 / 0.32);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgb(var(--line) / var(--line-alpha));
+  gap: 0.125rem;
+  padding: 0.1875rem;
+  border-radius: 0.5rem;
+  background: rgb(var(--bg-sunken) / 0.8);
+  border: 1px solid rgb(var(--line) / 0.06);
+  box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.35);
 }
 .seg-item {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
-  border-radius: 0.4375rem;
+  padding: 0.375rem 0.6875rem;
+  border-radius: 0.375rem;
   font-size: 0.75rem;
   font-weight: 600;
   color: rgb(var(--ink-3));
@@ -287,33 +338,40 @@
   cursor: pointer;
   transition: color 0.15s var(--ease-out), background-color 0.15s var(--ease-out), box-shadow 0.15s var(--ease-out);
 }
-.seg-item:hover { color: rgb(var(--ink)); }
-.seg-item-active {
-  background: rgb(var(--gold) / 0.16);
-  color: rgb(var(--gold-text));
+.seg-item:hover { color: rgb(var(--ink-2)); }
+.seg-item-active,
+.seg-item-active:hover {
+  background: rgb(255 255 255 / 0.07);
+  color: rgb(var(--ink));
   box-shadow:
-    inset 0 0 0 1px rgb(var(--gold) / 0.35),
-    inset 0 1px 0 rgb(255 255 255 / 0.10);
+    inset 0 0 0 1px rgb(var(--line) / 0.1),
+    inset 0 1px 0 rgb(255 255 255 / 0.07);
 }
-.seg-item-active:hover { color: rgb(var(--gold-bright)); }
 
+/* Status dot. Small, calm — a pulse in opacity only, never a ping halo. */
 .led {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   flex-shrink: 0;
-  animation: pulse-dot 2.4s ease-in-out infinite;
+  animation: pulse-dot 2.8s ease-in-out infinite;
 }
-.led-gold { background: rgb(var(--gold)); box-shadow: 0 0 0 3px rgb(var(--gold) / 0.18), 0 0 8px rgb(var(--gold) / 0.7); }
-.led-up   { background: rgb(var(--up));   box-shadow: 0 0 0 3px rgb(var(--up) / 0.18),   0 0 8px rgb(var(--up) / 0.7); }
-.led-down { background: rgb(var(--down)); box-shadow: 0 0 0 3px rgb(var(--down) / 0.18), 0 0 8px rgb(var(--down) / 0.7); }
+.led-gold { background: rgb(var(--gold)); box-shadow: 0 0 0 3px rgb(var(--gold) / 0.14); }
+.led-up   { background: rgb(var(--up));   box-shadow: 0 0 0 3px rgb(var(--up) / 0.14); }
+.led-down { background: rgb(var(--down)); box-shadow: 0 0 0 3px rgb(var(--down) / 0.14); }
+
+/* A ruled cell inside a slab-grid readout (market terminal, stat strips). */
+.cell {
+  padding: 0.875rem 1rem;
+  border-color: rgb(var(--line) / var(--line-alpha));
+}
 
 /* 5 · TEXT ROLES ---------------------------------------------------------- */
 
 .kicker {
   font-size: 11px;
   line-height: 1.3;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   font-weight: 600;
   color: rgb(var(--ink-3));
@@ -324,23 +382,47 @@
 .micro-label {
   font-size: 10px;
   line-height: 1.4;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .metric {
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.025em;
   font-variant-numeric: tabular-nums;
 }
 
+/* The hero. Large, tightly tracked, weight 700 — confident, not shouty. */
 .display-hero {
-  font-size: clamp(2.4rem, 5.4vw, 4rem);
-  line-height: 1.04;
-  letter-spacing: -0.022em;
-  font-weight: 750;
+  font-size: clamp(2.75rem, 6.2vw, 4.75rem);
+  line-height: 1.0;
+  letter-spacing: -0.032em;
+  font-weight: 700;
+}
+
+/* Page-title register — one step below the hero, same discipline. */
+.display-2 {
+  font-size: clamp(1.875rem, 3.4vw, 2.625rem);
+  line-height: 1.08;
+  letter-spacing: -0.026em;
+  font-weight: 700;
+}
+
+/* Section heading register. */
+.display-3 {
+  font-size: 1.25rem;
+  line-height: 1.25;
+  letter-spacing: -0.018em;
+  font-weight: 700;
+}
+
+.lead {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: rgb(var(--ink-2));
+  max-width: 56ch;
 }
 
 .tnum { font-variant-numeric: tabular-nums; }
@@ -351,32 +433,10 @@
   letter-spacing: 0;
 }
 
-/* 6 · AMBIENCE & MOTION --------------------------------------------------- */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 
-.orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  pointer-events: none;
-  mix-blend-mode: screen;
-  will-change: transform;
-  animation: ambient-drift 18s ease-in-out infinite alternate;
-}
-.orb-gold {
-  width: 560px; height: 560px;
-  background: radial-gradient(circle, rgb(var(--gold) / 0.14) 0%, rgb(var(--gold) / 0) 70%);
-}
-.orb-crimson {
-  width: 480px; height: 480px;
-  background: radial-gradient(circle, rgb(var(--down) / 0.10) 0%, rgb(var(--down) / 0) 70%);
-  animation-delay: -8s;
-}
-
-@keyframes ambient-drift {
-  0%   { transform: translate(0, 0) scale(1); }
-  50%  { transform: translate(40px, -25px) scale(1.08); }
-  100% { transform: translate(-30px, 25px) scale(0.94); }
-}
+/* 6 · MOTION -------------------------------------------------------------- */
 
 @keyframes rise {
   from { opacity: 0; transform: translateY(6px); }
@@ -385,19 +445,19 @@
 .animate-rise { animation: rise 0.22s var(--ease-out) both; }
 
 @keyframes line-up {
-  from { transform: translateY(115%); }
+  from { transform: translateY(112%); }
   to   { transform: translateY(0); }
 }
-.reveal-line { display: block; overflow: hidden; padding-bottom: 0.05em; }
+.reveal-line { display: block; overflow: hidden; padding-bottom: 0.06em; }
 .reveal-line > span {
   display: block;
-  transform: translateY(115%);
-  animation: line-up 0.65s var(--ease-out) forwards;
+  transform: translateY(112%);
+  animation: line-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%      { opacity: 0.35; transform: scale(0.8); }
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.32; }
 }
 
 @keyframes marquee {
@@ -410,10 +470,15 @@
   to   { background-position: -100% 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, rgb(var(--card)) 25%, rgb(var(--elevated)) 37%, rgb(var(--card)) 63%);
+  background: linear-gradient(
+    90deg in oklab,
+    rgb(var(--panel)) 25%,
+    rgb(var(--elevated)) 37%,
+    rgb(var(--panel)) 63%
+  );
   background-size: 300% 100%;
   animation: shimmer 1.4s linear infinite;
-  border-radius: 6px;
+  border-radius: 0.5rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -426,71 +491,43 @@
 }
 
 /* 7 · LEGACY ALIASES ------------------------------------------------------
-   Old class names remapped onto the new recipes so not-yet-swept surfaces
+   Old class names remapped onto the current recipes so not-yet-swept surfaces
    stay coherent. Remove once the component sweep is complete. */
 
 .glass-panel {
   background: rgb(var(--panel) / var(--panel-alpha));
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgb(var(--line) / 0.12);
-  box-shadow:
-    0 20px 50px -12px rgb(2 4 10 / var(--shadow-strength)),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.10);
+  border: 1px solid rgb(var(--line) / var(--line-alpha));
+  box-shadow: var(--shadow-3), var(--specular);
 }
 .glass-card {
   background: rgb(var(--card) / var(--card-alpha));
-  backdrop-filter: blur(20px) saturate(170%);
-  -webkit-backdrop-filter: blur(20px) saturate(170%);
   border: 1px solid rgb(var(--line) / var(--line-alpha));
-  box-shadow:
-    0 10px 30px -10px rgb(2 4 10 / calc(var(--shadow-strength) * 0.8)),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.08);
-  transition: border-color 0.2s var(--ease-out), background-color 0.2s var(--ease-out);
+  box-shadow: var(--shadow-2), var(--specular);
+  transition: border-color 0.18s var(--ease-out), background-color 0.18s var(--ease-out);
 }
-.glass-card:hover {
-  border-color: rgb(var(--line) / var(--line-strong-alpha));
-}
+.glass-card:hover { border-color: rgb(var(--line) / var(--line-strong-alpha)); }
 .glass-segmented {
-  background: rgb(0 0 0 / 0.32);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgb(var(--line) / var(--line-alpha));
+  background: rgb(var(--bg-sunken) / 0.8);
+  border: 1px solid rgb(var(--line) / 0.06);
+  box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.35);
 }
 .btn-glass-gold {
-  background: linear-gradient(135deg, rgb(var(--gold-bright) / 0.97) 0%, rgb(var(--gold) / 0.97) 55%, rgb(var(--gold-deep) / 0.97) 130%);
-  border: 1px solid rgb(255 255 255 / 0.28);
-  box-shadow: 0 8px 24px -4px rgb(var(--gold) / 0.40), inset 0 1px 0 0 rgb(255 255 255 / 0.40);
+  background: linear-gradient(in oklab, rgb(var(--gold-bright)), rgb(var(--gold)));
+  border: 1px solid rgb(var(--gold-deep) / 0.55);
+  box-shadow: var(--shadow-1), inset 0 1px 0 0 rgb(255 255 255 / 0.32);
   color: #1A1205;
-  transition: transform 0.15s var(--ease-out), box-shadow 0.2s var(--ease-out);
-}
-.btn-glass-gold:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 32px -4px rgb(var(--gold) / 0.55), inset 0 1px 0 0 rgb(255 255 255 / 0.55);
+  transition: background-color 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
 }
 .btn-glass-cyan, .btn-glass-dark {
-  background: rgb(255 255 255 / 0.05);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgb(var(--line) / 0.12);
-  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.045);
+  border: 1px solid rgb(var(--line) / var(--line-alpha));
+  box-shadow: var(--specular);
   color: rgb(var(--ink-2));
   transition: background-color 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
 }
 .btn-glass-cyan:hover, .btn-glass-dark:hover {
-  background: rgb(255 255 255 / 0.09);
+  background: rgb(255 255 255 / 0.085);
   border-color: rgb(var(--line) / var(--line-strong-alpha));
   color: rgb(var(--ink));
 }
-.orb-glow-gold, .orb-glow-cyan, .orb-glow-purple {
-  position: absolute;
-  width: 480px; height: 480px;
-  border-radius: 50%;
-  filter: blur(90px);
-  pointer-events: none;
-  z-index: 0;
-  background: radial-gradient(circle, rgb(var(--gold) / 0.10) 0%, rgb(var(--gold) / 0) 70%);
-}
-.orb-glow-cyan { background: radial-gradient(circle, rgb(var(--down) / 0.07) 0%, rgb(var(--down) / 0) 70%); }
-.orb-glow-purple { background: radial-gradient(circle, rgb(var(--info) / 0.06) 0%, rgb(var(--info) / 0) 70%); }
 .tabular-nums { font-variant-numeric: tabular-nums; }

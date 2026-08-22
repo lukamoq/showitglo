@@ -1,13 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Users, Radio } from 'lucide-react';
 
 interface LiveVisitorsBadgeProps {
   className?: string;
   variant?: 'badge' | 'compact' | 'pill';
 }
 
+/**
+ * Real presence, or nothing.
+ *
+ * `GET /api/v1/live/stats` counts heartbeats from the last 90 seconds, so the
+ * viewer is included once their own heartbeat lands. When the endpoint is
+ * unavailable the badge unmounts rather than inventing a number — a fake
+ * "12 online" is the single fastest way to lose a visitor's trust.
+ */
 export const LiveVisitorsBadge: React.FC<LiveVisitorsBadgeProps> = ({
   className = '',
   variant = 'badge',
@@ -66,35 +73,39 @@ export const LiveVisitorsBadge: React.FC<LiveVisitorsBadgeProps> = ({
 
   if (liveCount === null) return null;
 
+  /* Both registers are plural-safe by construction — "1 live", "1 in the
+     arena" — and the screen-reader string is spelled out either way. */
+  const spoken = `${liveCount} ${liveCount === 1 ? 'person is' : 'people are'} in the arena right now`;
+
   if (variant === 'compact') {
     return (
-      <div
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-meta font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${className}`}
-        title="Live concurrent visitors watching the arena right now"
+      <span
+        className={`inline-flex items-center gap-2 text-meta ${className}`}
+        title="Live visitors in the arena right now"
       >
-        <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        <span className="led led-up" aria-hidden />
+        <span className="tnum font-semibold text-ink" aria-hidden>
+          {liveCount.toLocaleString()}
         </span>
-        <span className="tnum font-bold text-white tracking-tight">{liveCount}</span>
-        <span className="text-emerald-400/80 text-[10px] uppercase font-bold tracking-wider">live</span>
-      </div>
+        <span className="micro-label text-ink-3" aria-hidden>
+          live
+        </span>
+        <span className="sr-only">{spoken}</span>
+      </span>
     );
   }
 
   return (
-    <div
-      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] ${className}`}
-      title="Real-time live presence counter (heartbeat active)"
+    <span
+      className={`inline-flex items-center gap-2 rounded-control border border-line bg-white/[0.03] px-2.5 py-1 ${className}`}
+      title="Live visitors in the arena right now"
     >
-      <span className="relative flex h-2.5 w-2.5">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+      <span className="led led-up" aria-hidden />
+      <span className="text-dense text-ink-2" aria-hidden>
+        <span className="tnum font-semibold text-ink">{liveCount.toLocaleString()}</span> in the
+        arena
       </span>
-      <span className="flex items-baseline gap-1.5">
-        <span className="tnum metric text-sm text-white font-bold">{liveCount}</span>
-        <span className="micro-label text-ink-3">Live in arena</span>
-      </span>
-    </div>
+      <span className="sr-only">{spoken}</span>
+    </span>
   );
 };

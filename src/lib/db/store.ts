@@ -3342,6 +3342,10 @@ export async function eraseUser(userId: string): Promise<{ erased: boolean }> {
       [userId]
     );
 
+    // auth_tokens carries the user's real email in plaintext; the opportunistic
+    // GC would let it linger for days. Erasure removes it now, in this txn.
+    await client.query('DELETE FROM auth_tokens WHERE user_id = $1', [userId]);
+
     await insertAudit(client, {
       actor_id: userId,
       actor_type: 'user',

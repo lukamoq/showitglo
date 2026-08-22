@@ -13,9 +13,22 @@ import {
 import confetti from 'canvas-confetti';
 
 import { formatCents } from '@/lib/utils';
+import {
+  WITHDRAWAL_CONSENT_AFTER_LINK,
+  WITHDRAWAL_CONSENT_BEFORE_LINK,
+  WITHDRAWAL_CONSENT_LINK_TEXT,
+} from '@/lib/consent';
 import { TOPUP_MAX_CENTS, TOPUP_MIN_CENTS } from '@/lib/pricing';
 import type { Wallet } from '@/lib/types';
-import { apiGet, apiPost, errorText, readPendingTopUp, writePendingTopUp } from '../system/api';
+import {
+  apiGet,
+  apiPost,
+  errorText,
+  readPendingTopUp,
+  readWithdrawalConsent,
+  writePendingTopUp,
+  writeWithdrawalConsent,
+} from '../system/api';
 import { AdornedField } from '../system/AdornedField';
 import { ModalPortal } from '../system/ModalPortal';
 import { useModalChrome } from '../system/useModalChrome';
@@ -73,12 +86,12 @@ const STRIPE_APPEARANCE: Appearance = {
   theme: 'night',
   variables: {
     colorPrimary: '#F0A824',
-    colorBackground: '#0B0D14',
-    colorText: '#F6F7FA',
-    colorTextSecondary: '#9AA3B2',
+    colorBackground: '#050609',
+    colorText: '#F4F6FA',
+    colorTextSecondary: '#828996',
     colorDanger: '#EF4E66',
     fontFamily: 'Figtree, system-ui, -apple-system, sans-serif',
-    borderRadius: '10px',
+    borderRadius: '8px',
     spacingUnit: '4px',
   },
   rules: {
@@ -94,16 +107,70 @@ const AMOUNT_CHIPS = [100, 300, 500, 1000];
 type Phase = 'checking' | 'unavailable' | 'amount' | 'pay' | 'syncing' | 'sync_failed' | 'done';
 
 /* ------------------------------------------------------------------ *
+ * EU withdrawal consent
+ * ------------------------------------------------------------------ */
+
+interface ConsentCheckboxProps {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  id: string;
+}
+
+/**
+ * The immediate-delivery request and withdrawal acknowledgement.
+ *
+ * One unticked box, above the payment surface, gating every pay control. The
+ * wording comes from `@/lib/consent` — the same constant the server names in
+ * the audit row — so what the customer read and what we can later prove they
+ * read are the same sentence.
+ */
+const ConsentCheckbox: React.FC<ConsentCheckboxProps> = ({ checked, onChange, id }) => (
+  <label
+    htmlFor={id}
+    className="sunken flex cursor-pointer items-start gap-2.5 rounded-control p-3 text-dense text-ink-2"
+  >
+    <input
+      id={id}
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-gold"
+    />
+    <span>
+      {WITHDRAWAL_CONSENT_BEFORE_LINK}
+      <a
+        href="/terms"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="text-gold-text underline underline-offset-4 hover:text-gold-bright transition-colors"
+      >
+        {WITHDRAWAL_CONSENT_LINK_TEXT}
+      </a>
+      {WITHDRAWAL_CONSENT_AFTER_LINK}
+    </span>
+  </label>
+);
+
+/* ------------------------------------------------------------------ *
  * Payment surface (inside <Elements>)
  * ------------------------------------------------------------------ */
 
 interface CheckoutSurfaceProps {
   amountCents: number;
+  consentGiven: boolean;
+  onConsentChange: (next: boolean) => void;
   onPaid: (paymentIntentId: string) => void;
   onBack: () => void;
 }
 
-const CheckoutSurface: React.FC<CheckoutSurfaceProps> = ({ amountCents, onPaid, onBack }) => {
+const CheckoutSurface: React.FC<CheckoutSurfaceProps> = ({
+  amountCents,
+  consentGiven,
+  onConsentChange,
+  onPaid,
+  onBack,
+}) => {
   const stripe = useStripe();
   const elements = useElements();
   const [isConfirming, setIsConfirming] = useState(false);
@@ -118,7 +185,7 @@ const CheckoutSurface: React.FC<CheckoutSurfaceProps> = ({ amountCents, onPaid, 
   );
 
   const submitPayment = useCallback(async () => {
-    if (!stripe || !elements || isConfirming) return;
+    if (!stripe || !elements || isConfirming || !consentGiven) return;
     setIsConfirming(true);
     setMessage(null);
 
@@ -148,12 +215,17 @@ const CheckoutSurface: React.FC<CheckoutSurfaceProps> = ({ amountCents, onPaid, 
       setMessage(err instanceof Error ? err.message : 'Unexpected payment error.');
       setIsConfirming(false);
     }
-  }, [stripe, elements, isConfirming, finish]);
+  }, [stripe, elements, isConfirming, consentGiven, finish]);
 
   return (
     <div className="mt-5 space-y-4">
+      {/* Above every pay control, still un-tickable: unticking it here removes
+          the express buttons and disables the card button, so no path to a
+          charge survives withdrawing the consent. */}
+      <ConsentCheckbox id="topup-consent-pay" checked={consentGiven} onChange={onConsentChange} />
+
       {/* Apple Pay / Google Pay / Link — only rendered when a real wallet is available */}
-      {expressReady !== false && (
+      {consentGiven && expressReady !== false && (
         <div className={expressReady ? 'space-y-2' : 'sr-only'}>
           <span className="kicker block">Express checkout</span>
           <ExpressCheckoutElement
@@ -170,7 +242,7 @@ const CheckoutSurface: React.FC<CheckoutSurfaceProps> = ({ amountCents, onPaid, 
         </div>
       )}
 
-      {expressReady && (
+      {consentGiven && expressReady && (
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-line" />
           <span className="micro-label text-ink-3">Or pay by card</span>
@@ -193,7 +265,12 @@ const CheckoutSurface: React.FC<CheckoutSurfaceProps> = ({ amountCents, onPaid, 
           <span>Amount</span>
         </button>
 
-        <button type="button" onClick={() => void submitPayment()} disabled={!stripe || isConfirming} className="btn btn-gold flex-1">
+        <button
+          type="button"
+          onClick={() => void submitPayment()}
+          disabled={!stripe || isConfirming || !consentGiven}
+          className="btn btn-gold flex-1"
+        >
           {isConfirming ? (
             <>
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" aria-hidden />
@@ -207,6 +284,10 @@ const CheckoutSurface: React.FC<CheckoutSurfaceProps> = ({ amountCents, onPaid, 
           )}
         </button>
       </div>
+
+      {!consentGiven && (
+        <p className="text-meta text-ink-3">Tick the box above to enable payment.</p>
+      )}
     </div>
   );
 };
@@ -230,6 +311,10 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
   // surfaces, and threading the same two props through all of them is nine
   // chances for one to go stale and show a receipt field that does nothing.
   const [linkedReceipt, setLinkedReceipt] = useState<string | null>(null);
+  // Starts unticked on every mount; the session's earlier tick is restored in
+  // the open-effect, so the server-rendered first paint never shows a box
+  // ticked before the browser has been asked.
+  const [consentGiven, setConsentGiven] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreatingIntent, setIsCreatingIntent] = useState(false);
   const [intent, setIntent] = useState<CreateIntentResponse | null>(null);
@@ -309,6 +394,7 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
     setCustomDollars('');
     setReceiptEmail('');
     setSelectedCents(recommendedRef.current ?? 500);
+    setConsentGiven(readWithdrawalConsent());
 
     const pending = readPendingTopUp();
     if (pending) {
@@ -351,6 +437,12 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
     setSelectedCents(digitsOnly ? Number(digitsOnly) * 100 : 0);
   };
 
+  const handleConsentChange = (next: boolean) => {
+    setConsentGiven(next);
+    writeWithdrawalConsent(next);
+    if (next) setError(null);
+  };
+
   const amountIsValid = selectedCents >= TOPUP_MIN_CENTS && selectedCents <= TOPUP_MAX_CENTS;
 
   /** Why the CTA is disabled — a greyed-out button with no reason is a dead end. */
@@ -370,6 +462,10 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
       );
       return;
     }
+    if (!consentGiven) {
+      setError('Tick the immediate-delivery box to continue.');
+      return;
+    }
 
     setIsCreatingIntent(true);
     setError(null);
@@ -380,12 +476,23 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
     const trimmedReceipt = receiptEmail.trim();
     const res = await apiPost<CreateIntentResponse>('/api/v1/wallet/create-intent', {
       amount_cents: selectedCents,
+      withdrawal_consent: true,
       ...(!linkedReceipt && trimmedReceipt ? { receipt_email: trimmedReceipt } : {}),
     });
     setIsCreatingIntent(false);
 
     if (res.status === 503) {
       setPhase('unavailable');
+      return;
+    }
+
+    // The server is the authority on consent. If it says the tick is missing,
+    // clear ours rather than looping the customer through a button that keeps
+    // failing for a reason the UI thinks is already satisfied.
+    if (res.data?.code === 'CONSENT_REQUIRED') {
+      setConsentGiven(false);
+      writeWithdrawalConsent(false);
+      setError(errorText(res, 'Tick the immediate-delivery box to continue.'));
       return;
     }
 
@@ -407,7 +514,7 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(4,6,12,0.65)] p-4 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(3,4,8,0.72)] p-4 backdrop-blur-md">
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
 
       <div
@@ -546,6 +653,13 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
               )}
             </div>
 
+            {/* Asked before the card is touched, because this is the request
+                that makes the delivery immediate — not a confirmation of one
+                that already happened. */}
+            <div className="mt-4">
+              <ConsentCheckbox id="topup-consent-amount" checked={consentGiven} onChange={handleConsentChange} />
+            </div>
+
             {(error || (customDollars !== '' && amountProblem)) && (
               <p id="topup-error" role="alert" className="mt-3 flex items-start gap-2 text-dense text-down">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -556,7 +670,7 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
             <button
               type="button"
               onClick={() => void startPayment()}
-              disabled={isCreatingIntent || !amountIsValid}
+              disabled={isCreatingIntent || !amountIsValid || !consentGiven}
               className="btn btn-gold mt-5 w-full"
             >
               {isCreatingIntent ? (
@@ -582,6 +696,8 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
           >
             <CheckoutSurface
               amountCents={intent.amount_cents ?? selectedCents}
+              consentGiven={consentGiven}
+              onConsentChange={handleConsentChange}
               onPaid={(paymentIntentId) => void syncTopUp(paymentIntentId)}
               onBack={() => {
                 setIntent(null);

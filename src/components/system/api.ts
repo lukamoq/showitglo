@@ -212,3 +212,34 @@ export function writePendingTopUp(paymentIntentId: string | null): void {
     /* best effort only */
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * EU withdrawal consent (remembered for the browser session only)
+ * ------------------------------------------------------------------ */
+
+const WITHDRAWAL_CONSENT_KEY = 'sig_withdrawal_consent';
+
+/**
+ * Whether this browser session already ticked the immediate-delivery box.
+ *
+ * `sessionStorage`, not `localStorage`, and deliberately: a consent that
+ * silently outlives the visit stops being an act the customer performed. Within
+ * one sitting it spares a repeat top-up the same tick; the line itself is always
+ * rendered, always ticked visibly, and always un-tickable.
+ */
+export function readWithdrawalConsent(): boolean {
+  try {
+    return window.sessionStorage.getItem(WITHDRAWAL_CONSENT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function writeWithdrawalConsent(accepted: boolean): void {
+  try {
+    if (accepted) window.sessionStorage.setItem(WITHDRAWAL_CONSENT_KEY, '1');
+    else window.sessionStorage.removeItem(WITHDRAWAL_CONSENT_KEY);
+  } catch {
+    /* private mode / storage disabled — the box is simply asked again */
+  }
+}

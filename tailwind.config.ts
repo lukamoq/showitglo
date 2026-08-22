@@ -11,11 +11,12 @@ const config: Config = {
     extend: {
       colors: {
         bg: "rgb(var(--bg) / <alpha-value>)",
+        "bg-sunken": "rgb(var(--bg-sunken) / <alpha-value>)",
         panel: "rgb(var(--panel) / <alpha-value>)",
         card: "rgb(var(--card) / <alpha-value>)",
         elevated: "rgb(var(--elevated) / <alpha-value>)",
-        line: "rgb(var(--line) / 0.10)",
-        "line-strong": "rgb(var(--line) / 0.18)",
+        line: "rgb(var(--line) / 0.08)",
+        "line-strong": "rgb(var(--line) / 0.16)",
         ink: {
           DEFAULT: "rgb(var(--ink) / <alpha-value>)",
           2: "rgb(var(--ink-2) / <alpha-value>)",
@@ -32,13 +33,15 @@ const config: Config = {
         info: "rgb(var(--info) / <alpha-value>)",
         steel: "rgb(var(--steel) / <alpha-value>)",
         // legacy aliases kept until the sweep removes the last usages
-        background: "#0A0B10",
-        foreground: "#F6F7FA",
+        background: "#090A0E",
+        foreground: "#F4F6FA",
       },
+      // Figtree is self-hosted through next/font (see src/app/layout.tsx); the
+      // CSS variable is the single source, with a system stack behind it.
       fontFamily: {
-        sans: ['Figtree', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'sans-serif'],
-        display: ['Figtree', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'sans-serif'],
-        mono: ['Figtree', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['var(--font-figtree)', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'sans-serif'],
+        display: ['var(--font-figtree)', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'sans-serif'],
+        mono: ['var(--font-figtree)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       fontSize: {
         micro: ["10px", { lineHeight: "14px" }],
@@ -46,9 +49,16 @@ const config: Config = {
         dense: ["13.5px", { lineHeight: "20px" }],
       },
       borderRadius: {
-        control: "0.625rem",
-        card: "0.875rem",
-        modal: "1.25rem",
+        control: "0.5rem",
+        card: "0.75rem",
+        modal: "1rem",
+      },
+      boxShadow: {
+        e1: "var(--shadow-1)",
+        e2: "var(--shadow-2)",
+        e3: "var(--shadow-3)",
+        e4: "var(--shadow-4)",
+        specular: "var(--specular)",
       },
       animation: {
         rise: "rise 0.22s cubic-bezier(0.23, 1, 0.32, 1) both",

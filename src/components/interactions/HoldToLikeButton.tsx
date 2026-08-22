@@ -194,12 +194,14 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
         disabled={isSending}
         aria-label={`Back this stance with a 1 cent like. ${likesCount} likes so far.`}
         aria-describedby={errorMsg ? `like-error-${postId}` : undefined}
-        className={`btn btn-xs transition-all ${
-          isHolding ? 'btn-danger scale-105' : 'btn-ghost text-down hover:border-down/40'
+        className={`btn btn-xs ${
+          isHolding ? 'btn-danger' : 'btn-ghost hover:border-down/40'
         }`}
         title="Tap to give $0.01, hold to rapid-fire"
       >
-        <Heart className={`h-3.5 w-3.5 ${isHolding ? 'fill-white' : 'fill-down/20'}`} />
+        <Heart
+          className={`h-3.5 w-3.5 ${isHolding ? 'fill-white' : 'fill-down/25 text-down/80'}`}
+        />
         <span className="tnum">{likesCount.toLocaleString()}</span>
         <span className="hidden text-micro text-ink-3 sm:inline">{isSending ? '…' : '1¢'}</span>
       </button>

@@ -103,7 +103,7 @@ export const CreateWarModal: React.FC<CreateWarModalProps> = ({
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(3,4,8,0.72)] backdrop-blur-md">
         <div className="absolute inset-0" onClick={onClose} aria-hidden />
 
         <div
@@ -111,19 +111,16 @@ export const CreateWarModal: React.FC<CreateWarModalProps> = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-war-title"
-          className="relative z-10 w-full max-w-xl glass-panel rounded-3xl border border-white/20 p-6 sm:p-8 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+          className="relative z-10 w-full max-w-xl panel rounded-modal p-6 sm:p-8 overflow-hidden max-h-[90vh] overflow-y-auto animate-rise"
         >
-          <div className="flex items-center justify-between pb-4 border-b border-white/10">
+          <div className="flex items-start justify-between gap-4 pb-5 border-b border-line">
             <div>
-              <div className="flex items-center gap-1.5 text-xs font-mono text-rose-400 font-semibold uppercase">
-                <Swords className="w-3.5 h-3.5" />
-                <span>Multi-Faction War Arena</span>
-              </div>
-              <h3 id="create-war-title" className="text-xl font-bold text-white mt-0.5">
-                Launch a New War / Debate
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Free to start • Anyone can share opinions and vote without paying.
+              <span className="kicker">Multi-faction arena</span>
+              <h2 id="create-war-title" className="display-3 text-ink mt-2">
+                Launch a war
+              </h2>
+              <p className="text-meta text-ink-3 mt-1.5">
+                Free to start — anyone can share opinions and vote without paying.
               </p>
             </div>
 
@@ -131,26 +128,26 @@ export const CreateWarModal: React.FC<CreateWarModalProps> = ({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="p-1.5 rounded-full glass-card hover:bg-white/20 text-slate-400 hover:text-white cursor-pointer"
+              className="btn btn-bare btn-sm -mr-2 -mt-1 shrink-0"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5" aria-hidden />
             </button>
           </div>
 
           {errorMsg && (
-            <div
+            <p
               id="create-war-error"
               role="alert"
-              className="mt-4 p-3 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs"
+              className="mt-5 rounded-control border border-down/30 bg-down/10 px-3.5 py-2.5 text-dense text-down"
             >
               {errorMsg}
-            </div>
+            </p>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-6 space-y-5">
             <div>
-              <label htmlFor="war-question" className="text-xs font-semibold text-slate-300 block mb-1.5">
-                War Question / Topic *
+              <label htmlFor="war-question" className="kicker block mb-2">
+                War question / topic *
               </label>
               <input
                 id="war-question"
@@ -160,45 +157,37 @@ export const CreateWarModal: React.FC<CreateWarModalProps> = ({
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 aria-describedby={errorMsg ? 'create-war-error' : undefined}
-                placeholder="e.g. Which Cloud Provider is Best: AWS, GCP, Azure, or Cloudflare?"
-                className="w-full px-4 py-2.5 rounded-xl glass-card border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-400"
+                placeholder="e.g. Which cloud provider is best: AWS, GCP, Azure or Cloudflare?"
+                className="field"
               />
             </div>
 
             <DisplayNameField id="create-war-alias" value={authorDisplay} onChange={setAuthorDisplay} />
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold text-slate-300">
-                  Factions / Sides (2 to 6 Options) *
-                </label>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <span className="kicker">Factions / sides (2–6) *</span>
                 {sides.length < 6 && (
-                  <button
-                    type="button"
-                    onClick={handleAddSide}
-                    className="text-xs text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Option</span>
+                  <button type="button" onClick={handleAddSide} className="btn btn-bare btn-xs">
+                    <Plus className="w-3.5 h-3.5" aria-hidden />
+                    <span>Add option</span>
                   </button>
                 )}
               </div>
 
-              <div className="space-y-3">
+              <div className="rounded-card border border-line divide-y divide-line overflow-hidden">
                 {sides.map((side, idx) => (
-                  <div key={idx} className="p-3 rounded-2xl glass-card border border-white/10 relative space-y-2">
+                  <div key={idx} className="p-3.5 space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-mono uppercase font-bold text-slate-400">
-                        Option {idx + 1}
-                      </span>
+                      <span className="micro-label text-ink-3 tnum">Option {idx + 1}</span>
                       {sides.length > 2 && (
                         <button
                           type="button"
                           onClick={() => handleRemoveSide(idx)}
                           aria-label={`Remove option ${idx + 1}`}
-                          className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
+                          className="btn btn-bare btn-xs hover:!text-down"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3.5 h-3.5" aria-hidden />
                         </button>
                       )}
                     </div>
@@ -211,7 +200,7 @@ export const CreateWarModal: React.FC<CreateWarModalProps> = ({
                       onChange={(e) => handleSideChange(idx, 'label', e.target.value)}
                       aria-label={`Option ${idx + 1} label`}
                       placeholder={`e.g. ${idx === 0 ? 'Claude' : idx === 1 ? 'ChatGPT' : idx === 2 ? 'Gemini' : 'Grok'}`}
-                      className="w-full px-3 py-1.5 rounded-lg glass-segmented text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                      className="field !text-dense !py-2"
                     />
 
                     <input
@@ -221,23 +210,21 @@ export const CreateWarModal: React.FC<CreateWarModalProps> = ({
                       onChange={(e) => handleSideChange(idx, 'description', e.target.value)}
                       aria-label={`Option ${idx + 1} thesis`}
                       placeholder="Short core thesis / strength (optional)"
-                      className="w-full px-3 py-1.5 rounded-lg glass-segmented text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                      className="field !text-dense !py-2"
                     />
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={isSubmitting || !question.trim()}
-                className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 cursor-pointer shadow-xl bg-gradient-to-r from-rose-600 via-purple-600 to-cyan-600 text-white hover:opacity-90 disabled:opacity-50"
-              >
-                <Swords className="w-4 h-4" />
-                <span>{isSubmitting ? 'Igniting War...' : 'Ignite Community War (Free)'}</span>
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={isSubmitting || !question.trim()}
+              className="btn btn-gold w-full"
+            >
+              <Swords className="w-4 h-4" aria-hidden />
+              <span>{isSubmitting ? 'Launching…' : 'Launch this war — free'}</span>
+            </button>
           </form>
         </div>
       </div>

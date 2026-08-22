@@ -496,6 +496,43 @@ section('7. Security rails still wired');
   assert(intent.includes('PAYMENTS_NOT_CONFIGURED'), '/wallet/create-intent has no simulator fallback');
   assert(intent.includes('WALLET_MAX_CENTS'), '/wallet/create-intent enforces the wallet ceiling before charging');
 
+  // --- EU withdrawal consent ----------------------------------------------
+
+  // The waiver of the 14-day withdrawal right is only worth having if it is
+  // taken server-side and written down. A browser checkbox proves nothing, and
+  // an evidence row written after the charge can be missing for exactly the
+  // payment that is later disputed.
+  assert(
+    /withdrawal_consent[\s\S]{0,200}!==\s*true/.test(intent),
+    '/wallet/create-intent requires withdrawal_consent === true (no truthiness coercion)'
+  );
+  assert(intent.includes('CONSENT_REQUIRED'), '/wallet/create-intent answers a distinct CONSENT_REQUIRED code');
+  assert(
+    intent.indexOf("action: 'topup_consent'") > 0 &&
+      intent.indexOf("action: 'topup_consent'") < intent.indexOf('paymentIntents.create'),
+    'the consent is recorded in the audit log BEFORE the card is charged'
+  );
+
+  const consent = read('src/lib/consent.ts');
+  assert(
+    consent.includes('WITHDRAWAL_CONSENT_VERSION'),
+    'the consent wording is versioned so an audit row can name what was shown'
+  );
+
+  const topupModal = read('src/components/wallet/WalletTopUpModal.tsx');
+  assert(topupModal.includes('withdrawal_consent: true'), 'the top-up modal sends the consent it collected');
+  assert(
+    /disabled=\{[^}]*!consentGiven/.test(topupModal),
+    'the pay control is disabled until the consent box is ticked'
+  );
+  assert(
+    topupModal.includes('WITHDRAWAL_CONSENT_BEFORE_LINK'),
+    'the checkout renders the canonical consent wording rather than a copy of it'
+  );
+
+  assert(existsSync(join(ROOT, 'src/app/terms/page.tsx')), 'the Terms of Service page exists');
+  assert(read('src/components/layout/Footer.tsx').includes('/terms'), 'the footer links to the Terms');
+
   const session = read('src/lib/session.ts');
   assert(session.includes('timingSafeEqual'), 'session cookies are verified in constant time');
   assert(session.includes('httpOnly: true'), 'the session cookie is HttpOnly');

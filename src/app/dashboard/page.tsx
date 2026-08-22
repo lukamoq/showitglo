@@ -10,10 +10,7 @@ import { RecoverWalletDialog } from '@/components/wallet/RecoverWalletDialog';
 import { User, RankedPostView, Notification } from '@/lib/types';
 import { formatCents, timeAgo } from '@/lib/utils';
 import {
-  LayoutDashboard,
-  Trophy,
   Zap,
-  CreditCard,
   Plus,
   AlertCircle,
   RefreshCw,
@@ -179,18 +176,13 @@ export default function DashboardPage() {
     <div className="min-h-screen flex flex-col relative overflow-x-hidden">
       <Navbar onBalanceUpdated={() => void refreshWallet()} />
 
-      <div className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
+      <div className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-16 sm:pt-16 w-full">
         {/* Header & Wallet Banner */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-line">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-7 border-b border-line">
           <div>
-            <div className="kicker flex items-center gap-2">
-              <LayoutDashboard className="w-3.5 h-3.5" aria-hidden />
-              <span>Combatant &amp; Creator Terminal</span>
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight text-ink mt-2">
-              {user?.alias || 'Anonymous'}
-            </h1>
-            <p className="text-meta text-ink-3 mt-1">
+            <span className="kicker">Combatant &amp; creator terminal</span>
+            <h1 className="display-2 text-ink mt-3">{user?.alias || 'Anonymous'}</h1>
+            <p className="text-meta text-ink-3 mt-2">
               {hasReceiptEmail
                 ? 'Anonymous session · recoverable with your linked email'
                 : 'Anonymous session · no account, no email required'}
@@ -198,9 +190,11 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button type="button" onClick={() => setIsTopUpOpen(true)} className="btn btn-gold btn-sm">
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Funds</span>
+            {/* Ghost, not gold: the page's one primary is "Secure my wallet"
+                below, and the rail already carries the app-wide gold CTA. */}
+            <button type="button" onClick={() => setIsTopUpOpen(true)} className="btn btn-ghost btn-sm">
+              <Plus className="w-3.5 h-3.5" aria-hidden />
+              <span>Add funds</span>
             </button>
 
             <button
@@ -332,19 +326,19 @@ export default function DashboardPage() {
 
         {/* 1-Tap Outbid Reclaim Alerts */}
         {reclaimAlerts.length > 0 && (
-          <div className="mt-8">
+          <div className="mt-10">
             <h2 className="kicker !text-down flex items-center gap-1.5 mb-3">
               <AlertCircle className="w-3.5 h-3.5" aria-hidden />
-              <span>Outbid Alerts — Defend Your Rank</span>
+              <span>Outbid — defend your rank</span>
             </h2>
 
             <div className="panel rounded-card overflow-hidden divide-y divide-line">
               {reclaimAlerts.map((alert) => (
                 <div
                   key={alert.id}
-                  className="relative px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors duration-200 hover:bg-white/[0.04]"
+                  className="relative px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors duration-200 hover:bg-white/[0.03]"
                 >
-                  <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-down" />
+                  <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[2px] bg-down" />
 
                   <div className="min-w-0">
                     <span className="font-semibold text-[15px] text-ink block">
@@ -374,49 +368,59 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* 4-Stat Terminal Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-          <div className="card rounded-card p-4">
-            <div className="micro-label text-ink-3">Wallet Available</div>
-            <div className="metric text-2xl text-gold-text tnum mt-1.5 leading-none">
-              {formatCents(balanceCents)}
+        {/* Terminal readout — one ruled slab, not four floating cards. */}
+        <div className="panel rounded-card overflow-hidden mt-8 grid grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              label: 'Wallet available',
+              value: formatCents(balanceCents),
+              foot: 'Closed-loop balance',
+              gold: true,
+            },
+            {
+              label: 'Lifetime spend',
+              value: formatCents(wallet?.lifetime_spend_cents || 0),
+              foot: 'Likes & boosts',
+            },
+            {
+              label: 'My ranked stances',
+              value: String(metrics.total_posts),
+              foot: 'Live on the board',
+            },
+            {
+              label: 'Top active rank',
+              value: metrics.active_top_rank ? `#${metrics.active_top_rank}` : 'None',
+              foot: 'Best standing right now',
+            },
+          ].map((stat, i) => (
+            <div
+              key={stat.label}
+              className={`cell border-line ${i % 2 === 0 ? 'border-r' : ''} ${
+                i < 2 ? 'border-b' : ''
+              } lg:border-b-0 lg:border-r lg:last:border-r-0`}
+            >
+              <div className="micro-label text-ink-3">{stat.label}</div>
+              <div
+                className={`metric text-[1.625rem] tnum mt-2 leading-none ${
+                  stat.gold ? 'text-gold-text' : 'text-ink'
+                }`}
+              >
+                {stat.value}
+              </div>
+              <div className="text-meta text-ink-3 mt-2">{stat.foot}</div>
             </div>
-            <div className="text-meta text-ink-3 mt-1.5">Closed-loop balance</div>
-          </div>
-
-          <div className="card rounded-card p-4">
-            <div className="micro-label text-ink-3">Lifetime Spend</div>
-            <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
-              {formatCents(wallet?.lifetime_spend_cents || 0)}
-            </div>
-            <div className="text-meta text-ink-3 mt-1.5">Likes &amp; boosts</div>
-          </div>
-
-          <div className="card rounded-card p-4">
-            <div className="micro-label text-ink-3">My Ranked Stances</div>
-            <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
-              {metrics.total_posts}
-            </div>
-          </div>
-
-          <div className="card rounded-card p-4">
-            <div className="micro-label text-ink-3">Top Active Rank</div>
-            <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
-              {metrics.active_top_rank ? `#${metrics.active_top_rank}` : 'None'}
-            </div>
-          </div>
+          ))}
         </div>
 
         {/* My Stances / Opinions */}
-        <div className="mt-12">
-          <div className="flex items-center gap-2 mb-4">
-            <Trophy className="w-4 h-4 text-ink-3" aria-hidden />
-            <h2 className="text-xl font-bold tracking-tight text-ink">My Ranked Opinions</h2>
-            <span className="chip text-steel tnum">{posts.length}</span>
+        <div className="mt-14">
+          <div className="flex items-baseline gap-3 mb-4">
+            <h2 className="display-3 text-ink">My ranked opinions</h2>
+            <span className="chip chip-quiet tnum">{posts.length}</span>
           </div>
 
           <div className="panel rounded-card overflow-hidden">
-            <div className="hidden lg:grid lg:grid-cols-[3.5rem_1fr_7rem_auto] gap-4 items-center px-4 sm:px-5 py-2 border-b border-line bg-black/20">
+            <div className="hidden lg:grid lg:grid-cols-[3.5rem_1fr_7rem_auto] gap-4 items-center px-4 sm:px-5 py-2 border-b border-line bg-white/[0.015]">
               <div className="micro-label text-ink-3 text-right">Rank</div>
               <div className="micro-label text-ink-3">Stance</div>
               <div className="micro-label text-ink-3 text-right">Score</div>
@@ -455,7 +459,7 @@ export default function DashboardPage() {
                           {post.title}
                         </Link>
                         <div className="mt-1 flex items-center gap-2 text-meta text-ink-3 flex-wrap">
-                          <span className="tnum">{post.backers_count} backers</span>
+                          <span className="tnum">{post.backers_count} backer{post.backers_count === 1 ? '' : 's'}</span>
                           <span aria-hidden className="text-ink-3/50">·</span>
                           <span className="tnum">{formatCents(post.total_raised_cents)} raised</span>
                         </div>
@@ -527,15 +531,14 @@ export default function DashboardPage() {
         </div>
 
         {/* Wallet Ledger History */}
-        <div className="mt-12">
-          <div className="flex items-center gap-2 mb-4">
-            <CreditCard className="w-4 h-4 text-ink-3" aria-hidden />
-            <h2 className="text-xl font-bold tracking-tight text-ink">Wallet Transaction Ledger</h2>
-            <span className="chip text-steel tnum">{ledger.length}</span>
+        <div className="mt-14">
+          <div className="flex items-baseline gap-3 mb-4">
+            <h2 className="display-3 text-ink">Wallet transaction ledger</h2>
+            <span className="chip chip-quiet tnum">{ledger.length}</span>
           </div>
 
           <div className="panel rounded-card overflow-hidden">
-            <div className="hidden sm:grid sm:grid-cols-[7rem_1fr_9rem_7rem] gap-4 items-center px-4 sm:px-5 py-2 border-b border-line bg-black/20">
+            <div className="hidden sm:grid sm:grid-cols-[7rem_1fr_9rem_7rem] gap-4 items-center px-4 sm:px-5 py-2 border-b border-line bg-white/[0.015]">
               <div className="micro-label text-ink-3 text-right">Amount</div>
               <div className="micro-label text-ink-3">Type</div>
               <div className="micro-label text-ink-3 text-right">Balance After</div>

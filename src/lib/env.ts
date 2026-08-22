@@ -159,11 +159,16 @@ export function getSessionSecret(): string {
 
 let warnedSessionSecret = false;
 
-/** Minimum distinct backers before an insights aggregate may be published. */
+/**
+ * Minimum distinct backers before an insights aggregate may be published.
+ * Clamped to >= 100: the privacy policy makes 100 a public promise, so no
+ * environment variable may quietly weaken it. Raising it is allowed.
+ */
 export function getInsightsKMin(): number {
   const raw = Number(process.env.INSIGHTS_K_MIN);
-  if (!Number.isFinite(raw) || raw < 1) return 100;
-  return Math.floor(raw);
+  if (!Number.isFinite(raw)) return 100;
+  const floor = Math.floor(raw);
+  return floor < 100 ? 100 : floor;
 }
 
 export function getAppUrl(): string | null {

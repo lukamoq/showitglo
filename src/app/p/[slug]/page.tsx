@@ -13,7 +13,6 @@ import { ReportPostControl } from '@/components/post/ReportPostControl';
 import { RankedPostView, Interaction } from '@/lib/types';
 import { formatScore, formatCents, timeAgo } from '@/lib/utils';
 import {
-  Trophy,
   Zap,
   Share2,
   Users,
@@ -179,9 +178,8 @@ export default function PostDetailPage() {
       <Navbar />
 
       <div className="relative flex-1 w-full">
-        <div className="orb orb-gold -top-48 left-1/4 -translate-x-1/2 opacity-70" aria-hidden />
 
-        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-16 w-full">
           {/* Back Link */}
           <Link
             href="/"
@@ -191,112 +189,99 @@ export default function PostDetailPage() {
             <span>Back to Arena Board</span>
           </Link>
 
-          {/* Post Hero Slab */}
+          {/* Post Hero Slab — the statement leads, the controls follow it. */}
           <div className="panel rounded-card p-5 sm:p-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-line">
-              {/* Rank and Author */}
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className={`w-14 h-14 rounded-control flex flex-col items-center justify-center gap-0.5 shrink-0 ${
-                    isRank1
-                      ? 'bg-gold/15 text-gold-text ring-1 ring-gold/35 shadow-[0_0_26px_-6px_rgb(var(--gold)/0.6)]'
-                      : 'sunken text-ink'
-                  }`}
-                >
-                  {isRank1 && <Trophy className="w-3.5 h-3.5" aria-hidden />}
-                  <span className="metric text-lg leading-none">#{post.rank || '—'}</span>
-                </div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span
+                className={`metric text-lg leading-none tnum ${
+                  isRank1 ? 'text-gold-text' : 'text-ink-2'
+                }`}
+              >
+                #{post.rank || '—'}
+              </span>
+              <span aria-hidden className="h-4 w-px bg-line-strong" />
+              <span className="text-meta text-ink-2 font-medium inline-flex items-center gap-1.5">
+                <UserIcon className="w-3.5 h-3.5 text-ink-3" aria-hidden />
+                {post.author_display}
+              </span>
+              <span aria-hidden className="text-ink-3/40">·</span>
+              <span className="text-meta text-ink-3 tnum">{timeAgo(post.created_at)}</span>
 
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="chip text-steel">
-                      <UserIcon className="w-3 h-3" />
-                      {post.author_display}
-                    </span>
-
-                    {post.kind === 'demand' && (
-                      <span className="chip text-gold-text">
-                        <Megaphone className="w-3 h-3" />
-                        Demand @{post.demand_target || 'Brand'}
-                      </span>
-                    )}
-
-                    <span className="text-meta text-ink-3 tnum">{timeAgo(post.created_at)}</span>
-                  </div>
-
-                  <div className="micro-label text-ink-3 mt-1.5 flex items-center gap-1.5">
-                    <Lock className="w-3 h-3" aria-hidden />
-                    <span>Immutable public record</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 flex-wrap shrink-0">
-                <HoldToLikeButton
-                  postId={post.id}
-                  initialLikes={post.like_units}
-                  onLikeExecuted={() => {
-                    void fetchPost();
-                    void refreshWallet();
-                  }}
-                  onInsufficientFunds={(shortfallCents) => {
-                    setTopUpRecommendation(recommendedTopUpCents(shortfallCents));
-                    setIsTopUpOpen(true);
-                  }}
-                  onLikeCapReached={() => setIsBoostOpen(true)}
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setIsCounterOpen(true)}
-                  className="btn btn-ghost btn-sm text-down hover:border-down/40"
-                  title="Launch counter-opinion rebuttal"
-                >
-                  <Swords className="w-3.5 h-3.5" />
-                  <span>Counter This</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsShareOpen(true)}
-                  className="btn btn-ghost btn-sm"
-                  title="Generate a shareable flex card"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>Flex Card</span>
-                </button>
-
-                <button type="button" onClick={() => setIsBoostOpen(true)} className="btn btn-gold btn-sm">
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>Boost</span>
-                </button>
-
-                <ReportPostControl postId={post.id} />
-              </div>
+              {post.kind === 'demand' && (
+                <span className="chip text-steel">
+                  <Megaphone className="w-3 h-3" aria-hidden />
+                  Demand @{post.demand_target || 'Brand'}
+                  </span>
+              )}
             </div>
 
             {/* Statement & Body Content */}
-            <div className="my-6">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-ink leading-tight">
-                {post.title}
-              </h1>
+            <div className="mt-5">
+              <h1 className="display-2 text-ink max-w-[22ch]">{post.title}</h1>
 
+              <div className="micro-label text-ink-3 mt-4 flex items-center gap-1.5">
+                <Lock className="w-3 h-3" aria-hidden />
+                <span>Immutable public record</span>
+              </div>
+            </div>
+
+            {/* Action rail */}
+            <div className="mt-6 pt-6 border-t border-line flex items-center gap-2 flex-wrap">
+              <button type="button" onClick={() => setIsBoostOpen(true)} className="btn btn-gold btn-sm">
+                <Zap className="w-3.5 h-3.5" aria-hidden />
+                <span>Boost</span>
+              </button>
+
+              <HoldToLikeButton
+                postId={post.id}
+                initialLikes={post.like_units}
+                onLikeExecuted={() => {
+                  void fetchPost();
+                  void refreshWallet();
+                }}
+                onInsufficientFunds={(shortfallCents) => {
+                  setTopUpRecommendation(recommendedTopUpCents(shortfallCents));
+                  setIsTopUpOpen(true);
+                }}
+                onLikeCapReached={() => setIsBoostOpen(true)}
+              />
+
+              <button
+                type="button"
+                onClick={() => setIsCounterOpen(true)}
+                className="btn btn-ghost btn-sm hover:border-down/40"
+                title="Launch counter-opinion rebuttal"
+              >
+                <Swords className="w-3.5 h-3.5 text-down/80" aria-hidden />
+                <span>Counter this</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsShareOpen(true)}
+                className="btn btn-bare btn-sm"
+                title="Generate a shareable flex card"
+              >
+                <Share2 className="w-3.5 h-3.5" aria-hidden />
+                <span>Flex card</span>
+              </button>
+
+              <span className="ml-auto">
+                <ReportPostControl postId={post.id} />
+              </span>
+            </div>
+
+            <div className="mt-6 space-y-4">
               {/* Linked External Post Reference (§4) */}
               {post.source_url && (
-                <div className="mt-5 sunken rounded-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-md bg-white/[0.05] border border-line flex items-center justify-center text-ink-3 shrink-0">
-                      <Megaphone className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="micro-label text-ink-3 block">
-                        Linked external post ({post.source_platform?.toUpperCase() || 'EXTERNAL'})
-                      </span>
-                      <span className="text-meta text-ink-2 line-clamp-1 break-all">
-                        {post.source_url}
-                      </span>
-                    </div>
+                <div className="sunken rounded-control px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="micro-label text-ink-3 block">
+                      Linked external post ({post.source_platform?.toUpperCase() || 'EXTERNAL'})
+                    </span>
+                    <span className="text-meta text-ink-2 line-clamp-1 break-all mt-0.5 block">
+                      {post.source_url}
+                    </span>
                   </div>
 
                   <a
@@ -305,89 +290,92 @@ export default function PostDetailPage() {
                     rel="noopener noreferrer"
                     className="btn btn-ghost btn-xs shrink-0"
                   >
-                    <span>View Original Post</span>
-                    <Share2 className="w-3 h-3" />
+                    <span>View original</span>
+                    <Share2 className="w-3 h-3" aria-hidden />
                   </a>
                 </div>
               )}
 
               {post.body && (
-                <div className="mt-5 sunken rounded-card p-5 text-[15px] text-ink-2 leading-relaxed whitespace-pre-wrap">
+                <blockquote className="border-l-2 border-line-strong pl-5 text-[15px] text-ink-2 leading-relaxed whitespace-pre-wrap max-w-[68ch]">
                   {post.body}
-                </div>
+                </blockquote>
               )}
             </div>
 
             {/* Official Brand Response Section (§9) */}
             {post.brand_response ? (
-              <div className="my-6 card rounded-card p-5 sm:p-6 bg-up/[0.04]">
-                <div className="flex items-center justify-between gap-3 flex-wrap pb-3 border-b border-line mb-3">
+              <div className="mt-6 rounded-card border border-up/20 bg-up/[0.045] p-5">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                   <span className="chip text-up">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Official on-the-record brand response
+                    <CheckCircle2 className="w-3 h-3" aria-hidden />
+                    Official brand response
                   </span>
                   <span className="text-meta text-ink-3">
                     By {post.brand_response.author_display}
                   </span>
                 </div>
-                <h3 className="text-sm font-semibold text-ink mb-2">{post.brand_response.title}</h3>
-                <p className="text-[15px] text-ink-2 leading-relaxed">{post.brand_response.body}</p>
+                <h2 className="text-[15px] font-semibold text-ink mt-3">
+                  {post.brand_response.title}
+                </h2>
+                <p className="text-[15px] text-ink-2 leading-relaxed mt-1.5 max-w-[68ch]">
+                  {post.brand_response.body}
+                </p>
               </div>
             ) : post.kind === 'demand' && (
               /* There is no self-serve brand verification yet, so there is no
                  "post as this company" button — anyone could press it. Official
                  responses are published only through a verified channel. */
-              <div className="my-6 sunken rounded-card px-4 py-3.5 flex items-center gap-2 text-meta text-ink-2">
-                <Building2 className="w-4 h-4 text-ink-3 shrink-0" aria-hidden />
+              <p className="mt-6 flex items-start gap-2 text-meta text-ink-3 max-w-[72ch]">
+                <Building2 className="w-4 h-4 shrink-0 mt-px" aria-hidden />
                 <span>
                   No official response from {post.demand_target || 'this company'} yet. Responses are
                   published only after ShowItGlo verifies the responder, so nothing here can be posted
                   in a company&apos;s name by someone else.
                 </span>
-              </div>
+              </p>
             )}
 
-            {/* Dual Metrics Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 border-t border-line">
-              <div className="card rounded-card p-3.5">
-                <div className="micro-label text-ink-3">Current decayed score</div>
-                <div className="metric text-2xl text-gold-text mt-1 tnum">
-                  {formatScore(post.display_score)}
+            {/* Metrics readout — one ruled strip, flush inside the slab. */}
+            <div className="mt-8 -mx-5 sm:-mx-8 -mb-5 sm:-mb-8 border-t border-line grid grid-cols-2 sm:grid-cols-4">
+              {[
+                {
+                  label: 'Decayed score',
+                  value: formatScore(post.display_score),
+                  gold: true,
+                },
+                { label: 'Distinct backers', value: post.backers_count.toLocaleString() },
+                { label: 'Penny likes (1¢)', value: post.like_units.toLocaleString() },
+                { label: 'Gross backing', value: formatCents(post.total_raised_cents) },
+              ].map((stat, i) => (
+                <div
+                  key={stat.label}
+                  className={`cell border-line ${i % 2 === 0 ? 'border-r' : ''} ${
+                    i < 2 ? 'border-b' : ''
+                  } sm:border-b-0 sm:border-r sm:last:border-r-0`}
+                >
+                  <div className="micro-label text-ink-3">{stat.label}</div>
+                  <div
+                    className={`metric text-[1.5rem] tnum mt-2 leading-none ${
+                      stat.gold ? 'text-gold-text' : 'text-ink'
+                    }`}
+                  >
+                    {stat.value}
+                  </div>
                 </div>
-              </div>
-
-              <div className="card rounded-card p-3.5">
-                <div className="micro-label text-ink-3">Total distinct backers</div>
-                <div className="metric text-2xl text-ink mt-1 tnum">
-                  {post.backers_count.toLocaleString()}
-                </div>
-              </div>
-
-              <div className="card rounded-card p-3.5">
-                <div className="micro-label text-ink-3">Penny likes (1¢)</div>
-                <div className="metric text-2xl text-ink mt-1 tnum">
-                  {post.like_units.toLocaleString()}
-                </div>
-              </div>
-
-              <div className="card rounded-card p-3.5">
-                <div className="micro-label text-ink-3">Gross backing raised</div>
-                <div className="metric text-2xl text-ink mt-1 tnum">
-                  {formatCents(post.total_raised_cents)}
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
           {/* 2-Column Section: Crowd Backers & Interaction Ledger */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 items-start">
             <div className="panel rounded-card overflow-hidden">
               <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-line">
                 <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
                   <Users className="w-4 h-4 text-ink-3" aria-hidden />
                   <span>Penny Army backers</span>
                 </h2>
-                <span className="chip text-steel tnum">{backers.length}</span>
+                <span className="chip chip-quiet tnum">{backers.length}</span>
               </div>
 
               {backers.length > 0 ? (
@@ -430,7 +418,7 @@ export default function PostDetailPage() {
                   <Clock className="w-4 h-4 text-ink-3" aria-hidden />
                   <span>Immutable ledger timeline</span>
                 </h2>
-                <span className="chip text-steel tnum">{interactions.length}</span>
+                <span className="chip chip-quiet tnum">{interactions.length}</span>
               </div>
 
               {interactions.length > 0 ? (
@@ -455,8 +443,8 @@ export default function PostDetailPage() {
                       </div>
 
                       {i.achieved_rank && (
-                        <span className="chip text-gold-text shrink-0">
-                          Achieved #{i.achieved_rank}
+                        <span className="micro-label text-gold-text tnum shrink-0">
+                          → #{i.achieved_rank}
                         </span>
                       )}
                     </div>

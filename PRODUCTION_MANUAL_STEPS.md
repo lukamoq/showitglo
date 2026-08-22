@@ -267,6 +267,21 @@ outgoing magic links to a file, and `src/lib/env.ts` refuses to honour it when
 | **Verify** | The linked address wins. Passing a different `receipt_email` in the request body while an address is linked must NOT change where the receipt goes — that field is only honoured for wallets with no linked address. |
 | **Risk if skipped** | Silent non-delivery of payment receipts, which for a prepaid balance is a consumer-protection problem, not just a UX one. |
 
+### B11 — Tax: answer the VAT questions before EU volume  ← not started
+
+| | |
+|---|---|
+| **What** | Get the tax treatment of ShowItGlo's prepaid credits decided by the accountant. Nothing in the product calculates, shows or stores tax today, and no registration exists anywhere. |
+| **Brief** | [`docs/VAT_BRIEF.md`](docs/VAT_BRIEF.md) — written for the accountant. It states what is sold, where the money flows, exactly what per-sale data we hold (and the fact that we hold **no billing address and no customer country**), and the four questions that need answers: Swiss MWST registration duty (CHF 100k worldwide threshold), EU OSS non-Union registration once EU B2C supplies begin, US state sales tax on digital goods, and whether the taxable supply is the **top-up** or the **spend**. |
+| **Steps** | 1. Send `docs/VAT_BRIEF.md` to the accountant.<br>2. Get §4.4 answered first — top-up vs spend decides everything downstream, and the ledger already reports both bases exactly.<br>3. Register where the answer says to register. **Registrations come before Stripe Tax, not after.**<br>4. Only then enable Stripe Tax in the Stripe dashboard (Settings → Tax) and add the jurisdictions actually registered. It determines rates and records tax per charge; it does not register us anywhere and does not decide §4.4. |
+| **Verify** | Stripe → Tax shows the real registrations, and a test charge carries a tax line consistent with the accountant's answer. Revisit the whole brief before serious EU volume, and whenever Stripe's threshold monitoring flags a jurisdiction. |
+| **Risk if skipped** | Accruing an unregistered VAT/MWST liability on B2C digital services, in arrears, in jurisdictions we cannot currently even identify — because we do not store customer country and would have to reconstruct it from Stripe after the fact. |
+
+> Related but separate: [`docs/LEGAL_BRIEF_STORED_VALUE.md`](docs/LEGAL_BRIEF_STORED_VALUE.md)
+> is the brief for a Swiss fintech lawyer on whether the prepaid balance is a
+> regulated activity (deposit-taking / e-money / money transmission). Different
+> reader, different question, same underlying facts. Send both.
+
 ---
 
 ## C. Quick reference

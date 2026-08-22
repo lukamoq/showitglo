@@ -13,6 +13,7 @@ export default function robots(): MetadataRoute.Robots {
           '/wars',
           '/insights',
           '/history',
+          '/terms',
           '/privacy',
           '/impressum',
           '/p/',

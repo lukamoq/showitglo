@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, Building2, Mic, Flame, Swords, Sparkles } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { RankedPostView } from '@/lib/types';
 import { BoardRow } from './BoardRow';
 
@@ -14,12 +14,14 @@ interface BoardTableProps {
   pulsingPostId?: string | null;
 }
 
+/* Labels carry the filter; icons on every tab were decoration competing with
+   the rank column for attention. */
 const TABS = [
-  { key: 'all', label: 'All Stances', icon: Sparkles },
-  { key: 'demands', label: 'Companies & Institutions', icon: Building2 },
-  { key: 'opinions', label: 'Uncensored Opinions', icon: Mic },
-  { key: 'most_backed', label: 'Most Backed', icon: Flame },
-  { key: 'fights', label: 'Counter Fights', icon: Swords },
+  { key: 'all', label: 'All stances' },
+  { key: 'demands', label: 'Companies & institutions' },
+  { key: 'opinions', label: 'Uncensored opinions' },
+  { key: 'most_backed', label: 'Most backed' },
+  { key: 'fights', label: 'Counter fights' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -63,73 +65,72 @@ export const BoardTable: React.FC<BoardTableProps> = ({
   }, [board, searchQuery, activeTab]);
 
   return (
-    <div id="board-table" className="w-full space-y-4">
-      {/* Search and Navigation Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 glass-panel p-2 sm:p-2.5 rounded-2xl border border-white/10">
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-none">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
+    <div id="board-table" className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+      {/* One slab: toolbar, column rule, ruled rows. Never floating cards. */}
+      <div className="panel rounded-card overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-line">
+          <div className="seg w-full sm:w-auto overflow-x-auto no-scrollbar">
+            {TABS.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
                 aria-pressed={activeTab === tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === tab.key
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
+                className={`seg-item ${activeTab === tab.key ? 'seg-item-active' : ''}`}
               >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
+                {tab.label}
               </button>
-            );
-          })}
-        </div>
+            ))}
+          </div>
 
-        {/* Search Bar */}
-        <div className="flex w-full items-center gap-2 rounded-xl glass-card border border-white/10 px-2.5 py-1.5 focus-within:border-amber-400/50 sm:w-64">
-          <Search className="w-3.5 h-3.5 shrink-0 text-slate-400" aria-hidden />
-          <input
-            id="board-search"
-            type="search"
-            aria-label="Search stances, brands, and entities"
-            placeholder="Search stances, brands, entities..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs text-white placeholder-slate-500 outline-none"
-          />
-        </div>
-      </div>
-
-      {/* Board Rows List */}
-      <div className="space-y-3">
-        {filteredBoard.length > 0 ? (
-          filteredBoard.map((post) => (
-            <BoardRow
-              key={post.id}
-              post={post}
-              onBoost={onBoost}
-              onCounter={onCounter}
-              onLikeExecuted={onLikeExecuted}
-              onInsufficientFunds={onInsufficientFunds}
-              isPulsing={pulsingPostId === post.id}
+          <div className="flex items-center gap-2 sunken rounded-control px-2.5 h-9 w-full sm:w-60 focus-within:border-gold/50">
+            <Search className="w-3.5 h-3.5 shrink-0 text-ink-3" aria-hidden />
+            <input
+              id="board-search"
+              type="search"
+              aria-label="Search stances, brands, and entities"
+              placeholder="Search the board…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-dense text-ink placeholder:text-ink-3 outline-none"
             />
-          ))
+          </div>
+        </div>
+
+        {/* Column rule — states the row grammar once instead of on every row. */}
+        <div className="hidden lg:grid lg:grid-cols-[3rem_1fr_7rem_15rem] gap-6 items-center px-4 sm:px-5 py-2 border-b border-line bg-white/[0.015]">
+          <div className="micro-label text-ink-3 text-right">Rank</div>
+          <div className="micro-label text-ink-3">Stance</div>
+          <div className="micro-label text-ink-3 text-right">Score</div>
+          <div className="micro-label text-ink-3 text-right">Back it</div>
+        </div>
+
+        {filteredBoard.length > 0 ? (
+          <div className="divide-y divide-line">
+            {filteredBoard.map((post) => (
+              <BoardRow
+                key={post.id}
+                post={post}
+                onBoost={onBoost}
+                onCounter={onCounter}
+                onLikeExecuted={onLikeExecuted}
+                onInsufficientFunds={onInsufficientFunds}
+                isPulsing={pulsingPostId === post.id}
+              />
+            ))}
+          </div>
         ) : (
-          <div className="text-center py-16 glass-panel rounded-3xl border border-white/10">
-            <p className="text-slate-400 text-sm">No stances match your search or filter.</p>
+          <div className="py-16 text-center">
+            <p className="text-dense text-ink-3">No stances match your search or filter.</p>
             <button
               type="button"
               onClick={() => {
                 setSearchQuery('');
                 setActiveTab('all');
               }}
-              className="mt-3 text-xs text-amber-400 hover:underline font-bold"
+              className="btn btn-ghost btn-sm mt-4"
             >
-              Reset Filters
+              Reset filters
             </button>
           </div>
         )}

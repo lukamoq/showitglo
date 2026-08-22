@@ -1,6 +1,25 @@
 import type { Metadata } from "next";
+import { Figtree } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { Footer } from "@/components/layout/Footer";
+
+/**
+ * Self-hosted at build time. A runtime <link> to fonts.googleapis.com would
+ * disclose every visitor's IP address to Google before they consent to
+ * anything (the LG München I fact pattern), and costs two render-blocking
+ * round trips on top. next/font downloads the woff2 during the build and
+ * serves it from our own origin, so neither happens.
+ *
+ * Variable axis 300–900: the design system uses 400/500/600/700/800.
+ */
+const figtree = Figtree({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  style: ["normal", "italic"],
+  display: "swap",
+  variable: "--font-figtree",
+});
 
 export const metadata: Metadata = {
   title: "ShowItGlo — Let the World Decide What Opinion is Real",
@@ -24,20 +43,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="font-sans bg-[#060709] text-slate-100 antialiased min-h-screen flex flex-col selection:bg-amber-500/30 selection:text-amber-200">
+    <html lang="en" className={`dark ${figtree.variable}`}>
+      {/* Ground, ink and selection all come from the tokens in globals.css —
+          hard-coded utilities here would silently outrank the design system. */}
+      <body className="font-sans antialiased min-h-screen flex flex-col">
         <main className="flex-1">
           {children}
         </main>
         <Footer />
+        <Analytics />
       </body>
     </html>
   );

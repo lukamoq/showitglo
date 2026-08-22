@@ -17,7 +17,6 @@ import {
   RefreshCw,
   Send,
   ShieldCheck,
-  Swords,
   Zap,
 } from 'lucide-react';
 import { HoldToLikeButton } from '@/components/interactions/HoldToLikeButton';
@@ -44,18 +43,19 @@ const BACK_TIERS: Array<{ key: DebateBackTier; label: string }> = [
 ];
 
 /**
- * Sides of a fight read as up vs down first, then fall back to the neutral
- * semantic tones. Token classes only — never raw palette colors.
+ * Factions are ranked, not colour-coded — see the note on /debates. The side in
+ * front carries the gold; the rest step down a neutral ladder.
  */
-const SIDE_TONES = [
-  { text: 'text-up', bar: 'bg-up' },
-  { text: 'text-down', bar: 'bg-down' },
-  { text: 'text-info', bar: 'bg-info' },
-  { text: 'text-steel', bar: 'bg-steel' },
-  { text: 'text-gold-text', bar: 'bg-gold' },
-] as const;
+const FACTION_STEPS = ['bg-ink/45', 'bg-ink/28', 'bg-ink/18', 'bg-ink/12'] as const;
 
-const sideTone = (index: number) => SIDE_TONES[index % SIDE_TONES.length];
+const leadingSideKey = (sides: DebateView['sides']) =>
+  sides.reduce((lead, side) => (side.percentage > lead.percentage ? side : lead), sides[0])
+    ?.side_key;
+
+const factionTone = (index: number, isLeader: boolean) =>
+  isLeader
+    ? { text: 'text-gold-text', bar: 'bg-gold' }
+    : { text: 'text-ink-3', bar: FACTION_STEPS[index % FACTION_STEPS.length] };
 
 export default function SingleDebatePage() {
   const params = useParams();
@@ -238,12 +238,13 @@ export default function SingleDebatePage() {
     );
   }
 
+  const leadKey = leadingSideKey(debate.sides);
+
   return (
     <div className="min-h-screen text-ink flex flex-col relative overflow-x-hidden">
       <Navbar />
 
       <div className="relative flex-1 w-full">
-        <div className="orb orb-gold -top-48 left-1/4 -translate-x-1/2 opacity-70" aria-hidden />
 
         <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
           <Link
@@ -255,11 +256,11 @@ export default function SingleDebatePage() {
           </Link>
 
           {/* Debate Hero Panel */}
-          <div className="panel rounded-card overflow-hidden mb-8">
-            <div className="flex items-center justify-between gap-3 flex-wrap px-5 sm:px-6 py-3 border-b border-line">
+          <div className="panel rounded-card overflow-hidden mb-10">
+            <div className="flex items-center justify-between gap-3 flex-wrap px-5 sm:px-6 py-2.5 border-b border-line">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="chip text-steel">
-                  {debate.sides.length}-way multi-faction war
+                <span className="micro-label text-ink-3 tnum">
+                  {debate.sides.length}-way war
                 </span>
                 {debate.sponsor_label && (
                   <span className="chip text-up">
@@ -288,34 +289,36 @@ export default function SingleDebatePage() {
               </div>
             </div>
 
-            <div className="px-5 sm:px-8 py-6 sm:py-7">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-ink leading-tight">
-                {debate.question}
-              </h1>
+            <div className="px-5 sm:px-8 pt-7 pb-8">
+              <h1 className="display-2 text-ink max-w-[22ch]">{debate.question}</h1>
 
               {/* Multi-Segment Tug-of-War Bar */}
-              <div className="mt-6">
-                <div className="flex items-center gap-x-4 gap-y-1.5 flex-wrap mb-2">
-                  {debate.sides.map((side, idx) => (
-                    <span
-                      key={side.side_key}
-                      className={`micro-label flex items-center gap-1.5 ${sideTone(idx).text}`}
-                    >
-                      <span className="tnum">
-                        {side.label.split(' ')[0]} {side.percentage}%
+              <div className="mt-7">
+                <div className="flex items-center gap-x-5 gap-y-1.5 flex-wrap mb-2.5">
+                  {debate.sides.map((side, idx) => {
+                    const tone = factionTone(idx, side.side_key === leadKey);
+                    return (
+                      <span
+                        key={side.side_key}
+                        className={`micro-label flex items-center gap-1.5 ${tone.text}`}
+                      >
+                        <span aria-hidden className={`h-2 w-2 rounded-[2px] ${tone.bar}`} />
+                        <span className="tnum">
+                          {side.label} {side.percentage}%
+                        </span>
+                        <span className="text-ink-3 tnum">({side.backers_count} backer{side.backers_count === 1 ? '' : 's'})</span>
                       </span>
-                      <span className="text-ink-3 tnum">({side.backers_count} backers)</span>
-                    </span>
-                  ))}
+                    );
+                  })}
                 </div>
 
-                <div className="h-3 rounded-control sunken flex overflow-hidden gap-px p-px">
+                <div className="h-2.5 rounded-[3px] sunken flex overflow-hidden gap-px p-px">
                   {debate.sides.map((side, idx) => (
                     <div
                       key={side.side_key}
                       style={{ width: `${side.percentage}%` }}
-                      className={`h-full rounded-sm transition-all duration-700 opacity-80 hover:opacity-100 ${
-                        sideTone(idx).bar
+                      className={`h-full transition-[width] duration-700 ${
+                        factionTone(idx, side.side_key === leadKey).bar
                       }`}
                       title={`${side.label}: ${side.percentage}%`}
                     />
@@ -326,17 +329,12 @@ export default function SingleDebatePage() {
           </div>
 
           {/* Free Opinion & Argument Submission Panel */}
-          <div className="panel rounded-card p-5 sm:p-8 mb-10">
-            <div className="kicker-gold flex items-center gap-2">
-              <MessageSquare className="w-3.5 h-3.5" aria-hidden />
-              <span>Cast your vote &amp; share an uncensored argument</span>
-            </div>
+          <div className="panel rounded-card p-5 sm:p-8 mb-12">
+            <span className="kicker">Cast your vote</span>
 
-            <h2 className="text-xl font-bold tracking-tight text-ink mt-2">
-              Take Your Stance (Free Community Opinion)
-            </h2>
+            <h2 className="display-3 text-ink mt-3">Take your stance — free</h2>
 
-            <p className="text-[15px] text-ink-2 leading-relaxed max-w-[62ch] mt-2 mb-6">
+            <p className="text-[15px] text-ink-2 leading-relaxed max-w-[62ch] mt-2 mb-7">
               You don&apos;t need to bet or pay anything to share your opinion here. Speak freely,
               defend your preferred side, or optionally boost your conviction.
             </p>
@@ -356,23 +354,24 @@ export default function SingleDebatePage() {
                 <label className="kicker block mb-2">Select your side / faction *</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {debate.sides.map((side, idx) => {
-                    const tone = sideTone(idx);
+                    const tone = factionTone(idx, side.side_key === leadKey);
                     const isChosen = chosenSideKey === side.side_key;
                     return (
                       <button
                         type="button"
                         key={side.side_key}
                         onClick={() => setChosenSideKey(side.side_key)}
+                        aria-pressed={isChosen}
                         className={`relative overflow-hidden p-3 pl-4 rounded-control border text-left transition-colors cursor-pointer flex flex-col justify-between ${
                           isChosen
-                            ? `border-current bg-white/[0.06] ${tone.text}`
-                            : 'border-line text-ink-3 hover:text-ink-2 hover:bg-white/[0.04]'
+                            ? 'border-gold/45 bg-gold/[0.07] text-ink'
+                            : 'border-line text-ink-3 hover:text-ink-2 hover:bg-white/[0.035]'
                         }`}
                       >
                         <span
                           aria-hidden
-                          className={`absolute left-0 top-0 bottom-0 w-[3px] ${tone.bar} ${
-                            isChosen ? 'opacity-100' : 'opacity-30'
+                          className={`absolute left-0 top-0 bottom-0 w-[2px] ${
+                            isChosen ? 'bg-gold' : tone.bar
                           }`}
                         />
                         <span
@@ -488,10 +487,7 @@ export default function SingleDebatePage() {
 
           {/* Faction Roster & Arguments Streams */}
           <div className="space-y-6">
-            <h2 className="text-xl font-bold tracking-tight text-ink flex items-center gap-2">
-              <Swords className="w-4 h-4 text-ink-3" aria-hidden />
-              <span>Live Arguments &amp; Faction Rosters</span>
-            </h2>
+            <h2 className="display-3 text-ink">Live arguments &amp; faction rosters</h2>
 
             <div
               className={`grid grid-cols-1 ${
@@ -499,7 +495,8 @@ export default function SingleDebatePage() {
               } gap-6`}
             >
               {debate.sides.map((side, idx) => {
-                const tone = sideTone(idx);
+                const isLead = side.side_key === leadKey;
+                const tone = factionTone(idx, isLead);
                 return (
                   <div
                     key={side.side_key}
@@ -507,14 +504,16 @@ export default function SingleDebatePage() {
                   >
                     {/* Side Title & Score */}
                     <div className="relative flex items-start justify-between gap-3 px-5 py-4 border-b border-line">
-                      <span
-                        aria-hidden
-                        className={`absolute left-0 top-0 bottom-0 w-[3px] ${tone.bar} opacity-70`}
-                      />
+                      {isLead && (
+                        <span
+                          aria-hidden
+                          className="absolute left-0 top-0 bottom-0 w-[2px] bg-gold"
+                        />
+                      )}
 
                       <div className="min-w-0">
-                        <div className={`micro-label ${tone.text}`}>
-                          Faction · {side.percentage}% market share
+                        <div className={`micro-label tnum ${tone.text}`}>
+                          {side.percentage}% share{isLead ? ' · leading' : ''}
                         </div>
                         <h3 className="text-base font-bold tracking-tight text-ink mt-1 truncate">
                           {side.label}
@@ -523,11 +522,11 @@ export default function SingleDebatePage() {
 
                       <div className="text-right shrink-0">
                         <div className="micro-label text-ink-3">Backed</div>
-                        <div className="metric text-lg text-ink tnum leading-tight">
+                        <div className="metric text-lg text-ink tnum leading-tight mt-0.5">
                           {formatCents(side.total_cents)}
                         </div>
                         <div className="text-meta text-ink-3 tnum">
-                          {side.backers_count} backers
+                          {side.backers_count} backer{side.backers_count === 1 ? '' : 's'}
                         </div>
                       </div>
                     </div>
@@ -542,7 +541,7 @@ export default function SingleDebatePage() {
                     {/* Community Arguments Stream */}
                     <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-b border-line">
                       <span className="kicker">Community arguments</span>
-                      <span className="chip text-steel tnum">{side.opinions.length}</span>
+                      <span className="chip chip-quiet tnum">{side.opinions.length}</span>
                     </div>
 
                     {side.opinions.length > 0 ? (

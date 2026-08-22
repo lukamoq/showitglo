@@ -53,9 +53,11 @@ export async function POST(request: NextRequest) {
   try {
     const ip = getClientIp(request);
     const emailKey = createHash('sha256').update(email.value, 'utf8').digest('hex').slice(0, 32);
+    // Hash the IP like the email — raw addresses must not persist in rate buckets.
+    const ipKey = createHash('sha256').update(ip, 'utf8').digest('hex').slice(0, 32);
 
     const [perIp, perEmail] = await Promise.all([
-      checkDbRateLimit(`recover:ip:${ip}`, 5, 3600),
+      checkDbRateLimit(`recover:ip:${ipKey}`, 5, 3600),
       checkDbRateLimit(`recover:e:${emailKey}`, 3, 3600),
     ]);
     if (!perIp.allowed || !perEmail.allowed) {

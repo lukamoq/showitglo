@@ -62,7 +62,6 @@ export default function HistoryPage() {
       <div className="flex-1 w-full">
         {/* Header */}
         <div className="relative pt-10 pb-8 sm:pt-14 sm:pb-10">
-          <div className="orb orb-gold -top-64 -left-40 opacity-70" aria-hidden />
 
           <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="kicker kicker-gold flex items-center gap-2">

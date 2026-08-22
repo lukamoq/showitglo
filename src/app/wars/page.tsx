@@ -54,18 +54,13 @@ export default function WarsPage() {
 
       <div className="flex-1 w-full">
         {/* Header */}
-        <div className="relative pt-10 pb-8 sm:pt-14 sm:pb-10">
-          <div className="orb orb-gold -top-64 -left-40 opacity-70" aria-hidden />
+        <div className="pt-14 pb-10 sm:pt-20 sm:pb-12">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <span className="kicker">Rebuttals &amp; rivalries</span>
 
-          <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="kicker kicker-gold flex items-center gap-2">
-              <Swords className="w-4 h-4" aria-hidden />
-              <span>The fight arena · Rebuttals &amp; rivalries</span>
-            </div>
+            <h1 className="display-2 text-ink mt-4">Live opinion fights</h1>
 
-            <h1 className="text-3xl font-bold tracking-tight text-ink mt-3">Live Opinion Fights</h1>
-
-            <p className="text-[15px] text-ink-2 leading-relaxed max-w-[62ch] mt-3">
+            <p className="lead mt-4">
               Disagreement is expressed by elevating counter-opinions.{' '}
               <span className="tnum">Back your side with a 1¢ like</span> or a power boost to win
               the front page.
@@ -113,13 +108,14 @@ export default function WarsPage() {
                     >
                       {/* Fight meta */}
                       <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="chip text-down">
-                            <Swords className="w-3 h-3" />
-                            <span className="tnum">{fight.lead_changes_24h}</span> lead changes · 24h
-                          </span>
-                          <span className="chip text-steel">
+                        <div className="flex items-center gap-3 flex-wrap text-meta text-ink-3">
+                          <span className="micro-label text-ink-3 tnum">
                             Battle for rank #{Math.min(fight.post_a.rank || 1, fight.post_b.rank || 2)}
+                          </span>
+                          <span aria-hidden className="text-ink-3/40">·</span>
+                          <span className="tnum">
+                            {fight.lead_changes_24h} lead{' '}
+                            {fight.lead_changes_24h === 1 ? 'change' : 'changes'} in 24h
                           </span>
                         </div>
 
@@ -129,27 +125,41 @@ export default function WarsPage() {
                         </div>
                       </div>
 
-                      {/* Tug-of-war strength meter */}
+                      {/* Tug-of-war meter. The side in front carries the gold —
+                          the same signal rank #1 uses — so the bar reads as a
+                          scoreboard rather than a good-side / bad-side verdict. */}
                       <div className="mt-4">
                         <div className="flex items-center justify-between gap-3">
-                          <span className="micro-label text-up tnum">Side A · {pctA}%</span>
-                          <span className="micro-label text-down tnum">{pctB}% · Side B</span>
+                          <span
+                            className={`micro-label tnum ${aLeads ? 'text-gold-text' : 'text-ink-3'}`}
+                          >
+                            Side A · {pctA}%
+                          </span>
+                          <span
+                            className={`micro-label tnum ${aLeads ? 'text-ink-3' : 'text-gold-text'}`}
+                          >
+                            {pctB}% · Side B
+                          </span>
                         </div>
 
-                        <div className="mt-1.5 flex h-2 rounded-md sunken overflow-hidden">
+                        <div className="mt-2 flex h-2 rounded-[3px] sunken overflow-hidden gap-px p-px">
                           <div
                             style={{ width: `${pctA}%` }}
-                            className="h-full bg-up/75 transition-all duration-500"
+                            className={`h-full transition-[width] duration-500 ${
+                              aLeads ? 'bg-gold' : 'bg-ink/25'
+                            }`}
                           />
                           <div
                             style={{ width: `${pctB}%` }}
-                            className="h-full bg-down/75 transition-all duration-500"
+                            className={`h-full transition-[width] duration-500 ${
+                              aLeads ? 'bg-ink/25' : 'bg-gold'
+                            }`}
                           />
                         </div>
 
-                        <div className="mt-1.5 flex items-center justify-between gap-3 text-meta text-ink-3">
-                          <span className="tnum">{fight.post_a.backers_count} backers</span>
-                          <span className="tnum">{fight.post_b.backers_count} backers</span>
+                        <div className="mt-2 flex items-center justify-between gap-3 text-meta text-ink-3">
+                          <span className="tnum">{fight.post_a.backers_count} backer{fight.post_a.backers_count === 1 ? '' : 's'}</span>
+                          <span className="tnum">{fight.post_b.backers_count} backer{fight.post_b.backers_count === 1 ? '' : 's'}</span>
                         </div>
                       </div>
 
@@ -157,10 +167,17 @@ export default function WarsPage() {
                       <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
                         {/* Side A */}
                         <div className="relative pl-4">
-                          <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-up" />
+                          <span
+                            aria-hidden
+                            className={`absolute left-0 top-0 bottom-0 w-[2px] ${
+                              aLeads ? 'bg-gold' : 'bg-ink/20'
+                            }`}
+                          />
 
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="chip text-up">Rank #{fight.post_a.rank}</span>
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="micro-label text-ink-3 tnum">
+                              Rank #{fight.post_a.rank}
+                            </span>
                             <span
                               className={`metric text-lg tnum leading-none ${
                                 aLeads ? 'text-gold-text' : 'text-ink'
@@ -180,7 +197,7 @@ export default function WarsPage() {
                           <div className="mt-1 flex items-center gap-2 text-meta text-ink-3 flex-wrap">
                             <span className="text-ink-2 font-medium">{fight.post_a.author_display}</span>
                             <span aria-hidden className="text-ink-3/50">·</span>
-                            <span className="tnum">{fight.post_a.backers_count} backers</span>
+                            <span className="tnum">{fight.post_a.backers_count} backer{fight.post_a.backers_count === 1 ? '' : 's'}</span>
                           </div>
 
                           <div className="mt-3 flex items-center gap-2 pt-3 border-t border-line">
@@ -197,7 +214,7 @@ export default function WarsPage() {
                             <button
                               type="button"
                               onClick={() => handleBoostPost(fight.post_a)}
-                              className="btn btn-ghost btn-xs flex-1 text-up hover:border-up/40"
+                              className="btn btn-ghost btn-xs"
                             >
                               <Zap className="w-3.5 h-3.5" />
                               <span>Back Side A</span>
@@ -207,10 +224,17 @@ export default function WarsPage() {
 
                         {/* Side B */}
                         <div className="relative pl-4">
-                          <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-down" />
+                          <span
+                            aria-hidden
+                            className={`absolute left-0 top-0 bottom-0 w-[2px] ${
+                              aLeads ? 'bg-ink/20' : 'bg-gold'
+                            }`}
+                          />
 
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="chip text-down">Rank #{fight.post_b.rank}</span>
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="micro-label text-ink-3 tnum">
+                              Rank #{fight.post_b.rank}
+                            </span>
                             <span
                               className={`metric text-lg tnum leading-none ${
                                 aLeads ? 'text-ink' : 'text-gold-text'
@@ -230,7 +254,7 @@ export default function WarsPage() {
                           <div className="mt-1 flex items-center gap-2 text-meta text-ink-3 flex-wrap">
                             <span className="text-ink-2 font-medium">{fight.post_b.author_display}</span>
                             <span aria-hidden className="text-ink-3/50">·</span>
-                            <span className="tnum">{fight.post_b.backers_count} backers</span>
+                            <span className="tnum">{fight.post_b.backers_count} backer{fight.post_b.backers_count === 1 ? '' : 's'}</span>
                           </div>
 
                           <div className="mt-3 flex items-center gap-2 pt-3 border-t border-line">
@@ -247,7 +271,7 @@ export default function WarsPage() {
                             <button
                               type="button"
                               onClick={() => handleBoostPost(fight.post_b)}
-                              className="btn btn-ghost btn-xs flex-1 text-down hover:border-down/40"
+                              className="btn btn-ghost btn-xs"
                             >
                               <Zap className="w-3.5 h-3.5" />
                               <span>Back Side B</span>

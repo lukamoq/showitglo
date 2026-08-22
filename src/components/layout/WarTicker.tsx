@@ -18,7 +18,7 @@ export const WarTicker: React.FC<WarTickerProps> = ({ fights = [] }) => {
   if (fights.length === 0) return null;
 
   return (
-    <div className="w-full border-b border-line bg-black/30 backdrop-blur-md py-1.5 px-4">
+    <div className="w-full border-b border-line bg-bg-sunken/70 py-2 px-4">
       <div className="max-w-6xl mx-auto flex items-center gap-4 tape text-ink-2">
         <div className="micro-label text-down flex items-center gap-1.5 shrink-0">
           <span className="led led-down" aria-hidden />

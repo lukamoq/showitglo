@@ -1881,7 +1881,7 @@ async function phaseB() {
 
     const res = await api(session, '/api/v1/wallet/create-intent', {
       method: 'POST',
-      body: { amount_cents: 500, receipt_email: 'not an address' },
+      body: { amount_cents: 500, withdrawal_consent: true, receipt_email: 'not an address' },
     });
     checkEqual(res.status, 400, 'status');
     checkEqual(res.json.code, 'INVALID_EMAIL', 'error code');
@@ -1897,7 +1897,7 @@ async function phaseB() {
 
     const res = await api(session, '/api/v1/wallet/create-intent', {
       method: 'POST',
-      body: { amount_cents: 500, receipt_email: 'receipts@example.com' },
+      body: { amount_cents: 500, withdrawal_consent: true, receipt_email: 'receipts@example.com' },
     });
     // The suite's Stripe key is a dummy, so the call fails AT Stripe — which is
     // the proof that validation let it through rather than short-circuiting.
@@ -1912,7 +1912,7 @@ async function phaseB() {
     for (const amount of [0, -100, 99, 5001, 12.5]) {
       const res = await api(session, '/api/v1/wallet/create-intent', {
         method: 'POST',
-        body: { amount_cents: amount, receipt_email: 'receipts@example.com' },
+        body: { amount_cents: amount, withdrawal_consent: true, receipt_email: 'receipts@example.com' },
       });
       checkEqual(res.status, 400, `status for amount ${amount}`);
       checkEqual(res.json.code, 'INVALID_AMOUNT', 'error code');
@@ -1927,6 +1927,147 @@ async function phaseB() {
     checkEqual(res.status, 200, 'status');
     checkEqual(res.json.has_receipt_email, false, 'no address linked');
     checkEqual(res.json.receipt_email_masked, null, 'nothing to mask');
+  });
+
+  // ------------------------------------------------------------------------
+  section('EU withdrawal consent at checkout');
+
+  /**
+   * An EU consumer keeps the 14-day withdrawal right unless they expressly ask
+   * for immediate delivery AND acknowledge losing it, and the burden of proving
+   * they did is ours. A checkbox that only exists in the browser proves
+   * nothing, so the gate has to be here, and the evidence row has to exist
+   * before any money moves.
+   */
+
+  await test('create-intent without the consent field is refused — 400 CONSENT_REQUIRED', async () => {
+    const session = newSession('consent-missing');
+    await bootstrap(session);
+
+    const res = await api(session, '/api/v1/wallet/create-intent', {
+      method: 'POST',
+      body: { amount_cents: 500 },
+    });
+    checkEqual(res.status, 400, 'status');
+    checkEqual(res.json.code, 'CONSENT_REQUIRED', 'error code');
+    check(!res.json.client_secret, 'no client_secret handed out');
+
+    const reserved = await q('SELECT COUNT(*) AS n FROM wallet_intents WHERE user_id = $1', [session.userId]);
+    checkEqual(Number(reserved.rows[0].n), 0, 'no headroom reserved for a refused request');
+
+    const audits = await q(
+      `SELECT COUNT(*) AS n FROM audit_logs WHERE actor_id = $1 AND action = 'topup_consent'`,
+      [session.userId]
+    );
+    checkEqual(Number(audits.rows[0].n), 0, 'no consent was recorded for a consent that was not given');
+  });
+
+  await test('withdrawal_consent: false is refused', async () => {
+    const session = newSession('consent-false');
+    await bootstrap(session);
+
+    const res = await api(session, '/api/v1/wallet/create-intent', {
+      method: 'POST',
+      body: { amount_cents: 500, withdrawal_consent: false },
+    });
+    checkEqual(res.status, 400, 'status');
+    checkEqual(res.json.code, 'CONSENT_REQUIRED', 'error code');
+  });
+
+  await test('only a real boolean true counts as consent', async () => {
+    // "true", 1 and {} are a client guessing at the contract, not a person
+    // ticking a box. Coercing them would manufacture consent out of a bug.
+    const session = newSession('consent-truthy');
+    await bootstrap(session);
+
+    for (const value of ['true', 1, 'yes', {}, []]) {
+      const res = await api(session, '/api/v1/wallet/create-intent', {
+        method: 'POST',
+        body: { amount_cents: 500, withdrawal_consent: value },
+      });
+      checkEqual(res.status, 400, `status for ${JSON.stringify(value)}`);
+      checkEqual(res.json.code, 'CONSENT_REQUIRED', `error code for ${JSON.stringify(value)}`);
+    }
+  });
+
+  await test('with consent the request proceeds and the consent is recorded', async () => {
+    const session = newSession('consent-given');
+    await bootstrap(session);
+
+    const res = await api(session, '/api/v1/wallet/create-intent', {
+      method: 'POST',
+      body: { amount_cents: 1500, withdrawal_consent: true },
+    });
+    // The suite's Stripe key is a dummy, so the call fails AT Stripe — which is
+    // the proof that the consent gate let it through rather than stopping it.
+    checkEqual(res.status, 502, 'status');
+    checkEqual(res.json.code, 'PAYMENT_INTENT_FAILED', 'error code');
+
+    const audits = await q(
+      `SELECT actor_type, entity_type, entity_id, detail, ip_hash, created_at
+         FROM audit_logs
+        WHERE actor_id = $1 AND action = 'topup_consent'`,
+      [session.userId]
+    );
+    checkEqual(audits.rowCount, 1, 'exactly one consent row');
+
+    const row = audits.rows[0];
+    checkEqual(row.actor_type, 'user', 'actor type');
+    checkEqual(row.entity_type, 'wallet_intent', 'entity type');
+    check(typeof row.entity_id === 'string' && row.entity_id.length > 0, 'the row points at a reservation');
+    checkEqual(Number(row.detail.amount_cents), 1500, 'recorded amount');
+    check(
+      typeof row.detail.consent_version === 'string' && row.detail.consent_version.length > 0,
+      'the wording version is recorded'
+    );
+    check(row.created_at instanceof Date, 'the row carries a timestamp');
+  });
+
+  await test('the consent row records the amount and nothing else about the payer', async () => {
+    // This row is dispute evidence, not a profile. Anything extra in it is data
+    // we would have to defend holding, for no evidential gain.
+    const session = newSession('consent-minimal');
+    await bootstrap(session);
+
+    await api(session, '/api/v1/wallet/create-intent', {
+      method: 'POST',
+      body: { amount_cents: 200, withdrawal_consent: true, receipt_email: 'payer@example.com' },
+    });
+
+    const audits = await q(
+      `SELECT detail, ip_hash FROM audit_logs WHERE actor_id = $1 AND action = 'topup_consent'`,
+      [session.userId]
+    );
+    checkEqual(audits.rowCount, 1, 'exactly one consent row');
+
+    const keys = Object.keys(audits.rows[0].detail).sort();
+    checkEqual(keys.join(','), 'amount_cents,consent_version', 'detail keys');
+    checkEqual(audits.rows[0].ip_hash, null, 'no IP hash');
+    checkEqual(
+      JSON.stringify(audits.rows[0].detail).includes('payer@example.com'),
+      false,
+      'the receipt address is not copied into the consent record'
+    );
+  });
+
+  await test('consent alone does not bypass the amount bounds', async () => {
+    const session = newSession('consent-amount');
+    await bootstrap(session);
+
+    for (const amount of [0, -100, 99, 5001, 12.5]) {
+      const res = await api(session, '/api/v1/wallet/create-intent', {
+        method: 'POST',
+        body: { amount_cents: amount, withdrawal_consent: true },
+      });
+      checkEqual(res.status, 400, `status for amount ${amount}`);
+      checkEqual(res.json.code, 'INVALID_AMOUNT', 'error code');
+    }
+
+    const audits = await q(
+      `SELECT COUNT(*) AS n FROM audit_logs WHERE actor_id = $1 AND action = 'topup_consent'`,
+      [session.userId]
+    );
+    checkEqual(Number(audits.rows[0].n), 0, 'a rejected amount records no consent');
   });
 
   // ------------------------------------------------------------------------
