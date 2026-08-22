@@ -3368,6 +3368,63 @@ export async function eraseUser(userId: string): Promise<{ erased: boolean }> {
 const PRESENCE_WINDOW_SECONDS = 90;
 const PRESENCE_GC_SECONDS = 600;
 
+/**
+ * Create the `visitors` table on demand.
+ *
+ * scripts/schema.sql is the source of truth and creates this table too, but
+ * the schema is applied by hand (`npm run db:init`) while deploys are
+ * automatic — so a deploy can land hours before the migration does, and the
+ * visitor count silently reads as "unavailable" the whole time. That is
+ * exactly what happened on the first rollout.
+ *
+ * A single table with no foreign keys and no backfill is cheap enough to
+ * create lazily, so the feature turns itself on the first time it is used
+ * instead of waiting for an operator. The DDL below must stay identical to
+ * the one in schema.sql.
+ */
+let visitorsTableReady: Promise<void> | null = null;
+
+function ensureVisitorsTable(): Promise<void> {
+  if (!visitorsTableReady) {
+    visitorsTableReady = (async () => {
+      await queryPg(
+        `CREATE TABLE IF NOT EXISTS visitors (
+           visitor_key         TEXT PRIMARY KEY,
+           first_seen          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+           last_seen           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+         )`
+      );
+      await queryPg(`CREATE INDEX IF NOT EXISTS idx_visitors_last_seen ON visitors(last_seen)`);
+      log('info', 'visitors.table.created');
+    })().catch((err) => {
+      // Two instances racing `CREATE TABLE IF NOT EXISTS` is a duplicate-object
+      // error on one of them, not a failure: the table exists either way.
+      const code = (err as { code?: string }).code;
+      if (code === '23505' || code === '42P07') return;
+
+      // Anything else (no CREATE privilege, for instance) must not be cached
+      // as a permanent verdict — a later call gets to try again.
+      visitorsTableReady = null;
+      throw err;
+    });
+  }
+  return visitorsTableReady;
+}
+
+/**
+ * Run a visitors query, creating the table once if it turns out to be missing.
+ * Every other error propagates untouched.
+ */
+async function withVisitorsTable<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if ((err as { code?: string }).code !== '42P01') throw err;
+    await ensureVisitorsTable();
+    return run();
+  }
+}
+
 export async function heartbeat(sessionKey: string): Promise<void> {
   if (!sessionKey) return;
   const key = sessionKey.slice(0, 128);
@@ -3381,14 +3438,18 @@ export async function heartbeat(sessionKey: string): Promise<void> {
 
   // The durable half of the same beat. presence_heartbeats is GC'd, so it
   // could never answer "how many people have been here"; this row survives.
-  await queryPg(
-    `INSERT INTO visitors (visitor_key, first_seen, last_seen)
-     VALUES ($1, NOW(), NOW())
-     ON CONFLICT (visitor_key) DO UPDATE SET last_seen = NOW()`,
-    [key]
-  ).catch(() => {
-    // A missing visitors table (schema not yet migrated) must not take the
-    // live count down with it — presence above has already been recorded.
+  await withVisitorsTable(() =>
+    queryPg(
+      `INSERT INTO visitors (visitor_key, first_seen, last_seen)
+       VALUES ($1, NOW(), NOW())
+       ON CONFLICT (visitor_key) DO UPDATE SET last_seen = NOW()`,
+      [key]
+    )
+  ).catch((err) => {
+    // Presence above is already recorded; the cumulative half is additive and
+    // must never take the live count down with it. Logged rather than
+    // swallowed — a count stuck at "unavailable" should say why.
+    log('warn', 'visitors.upsert.failed', { error: String(err) });
   });
 
   // Opportunistic GC on ~1% of heartbeats — cheap enough to never need a cron.
@@ -3429,12 +3490,14 @@ export async function getVisitorTotals(): Promise<VisitorTotals> {
     return visitorTotalsCache.value;
   }
 
-  const res = await queryPg(
-    `SELECT COUNT(*) AS total,
-            COUNT(*) FILTER (
-              WHERE last_seen >= date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
-            ) AS today
-       FROM visitors`
+  const res = await withVisitorsTable(() =>
+    queryPg(
+      `SELECT COUNT(*) AS total,
+              COUNT(*) FILTER (
+                WHERE last_seen >= date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+              ) AS today
+         FROM visitors`
+    )
   );
 
   const value: VisitorTotals = {

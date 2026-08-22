@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getBoardStats, getPresenceCount, getVisitorTotals } from '@/lib/db/store';
 import { failure } from '@/lib/http';
+import { log } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,8 +24,13 @@ export async function GET() {
     const [liveVisitors, visitors, stats] = await Promise.all([
       getPresenceCount(),
       // Cumulative counts are additive, not load-bearing: if the visitors
-      // table is unreachable the live number still ships on its own.
-      getVisitorTotals().catch(() => null),
+      // table is unreachable the live number still ships on its own — logged
+      // rather than swallowed, so "unavailable" is diagnosable from the
+      // server logs instead of only visible as a missing number in the UI.
+      getVisitorTotals().catch((err) => {
+        log('warn', 'visitors.totals.failed', { error: String(err) });
+        return null;
+      }),
       getBoardStats('global'),
     ]);
 
