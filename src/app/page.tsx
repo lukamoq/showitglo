@@ -5,7 +5,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 
 import { Navbar } from '@/components/layout/Navbar';
 import { WarTicker } from '@/components/layout/WarTicker';
-import { BoardHeader } from '@/components/board/BoardHeader';
+import { BoardHeader, BoardMission } from '@/components/board/BoardHeader';
 import { BoardTable } from '@/components/board/BoardTable';
 import { BoostDrawer } from '@/components/boost/BoostDrawer';
 import { CreatePostModal } from '@/components/post/CreatePostModal';
@@ -152,6 +152,8 @@ export default function HomePage() {
         totalVolume={metrics.gross_market_volume}
         totalBoosts={metrics.total_boosts}
         distinctPayers={metrics.distinct_payers}
+        leaders={board.slice(0, 3)}
+        isLoading={isLoading}
         onOpenCreate={() => setIsCreateOpen(true)}
       />
 
@@ -194,6 +196,9 @@ export default function HomePage() {
             pulsingPostId={pulsingPostId}
           />
         )}
+
+        {/* The manifesto reads after the board has made the case, not before. */}
+        {!loadError && !isLoading && <BoardMission />}
       </div>
 
       {/* Modals & Drawers */}
