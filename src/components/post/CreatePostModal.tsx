@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Sparkles, AlertCircle, ShieldCheck, Zap, Megaphone, Mic, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import { X, Sparkles, AlertCircle, ShieldCheck, Zap, Megaphone, Mic, Link as LinkIcon, Building2, Flame } from 'lucide-react';
 import { runGate0Moderation } from '@/lib/moderation/gate0';
 import { formatUSD } from '@/lib/utils';
 import confetti from 'canvas-confetti';
@@ -23,18 +23,20 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [authorDisplay, setAuthorDisplay] = useState('Marc (ShipFast)');
-  const [initialBoostCents, setInitialBoostCents] = useState<number>(500); // $5.00 default initial backing
+  const [initialBoostCents, setInitialBoostCents] = useState<number>(100); // $1.00 accessible default
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const quickTargets = ['Tesla', 'Apple', "McDonald's", 'OpenAI', 'Google', 'Airlines', 'Central Banks', 'SEC / Regulators'];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
     if (postMode === 'demand' && !demandTarget.trim()) {
-      setErrorMsg('Target company or brand is required for a demand.');
+      setErrorMsg('Target company, institution, or organization is required.');
       return;
     }
 
@@ -108,7 +110,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               <span>Unfiltered Public Record</span>
             </div>
             <h3 className="text-xl font-bold text-white mt-0.5">
-              Take The Stage
+              Take The Public Stage
             </h3>
           </div>
 
@@ -120,42 +122,42 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
           </button>
         </div>
 
-        {/* 3-Mode Post Kind Selector: Say It Out Loud vs Link a Post vs Demand Change */}
+        {/* 3-Mode Post Kind Selector: Say It Out Loud vs Call Out Company/Institution vs Link a Post */}
         <div className="mt-4 grid grid-cols-3 gap-1.5 p-1 rounded-2xl glass-segmented border border-white/10 text-xs font-semibold">
           <button
             type="button"
             onClick={() => setPostMode('opinion')}
-            className={`py-2 px-2 rounded-xl transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
+            className={`py-2.5 px-2 rounded-xl transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
               postMode === 'opinion' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm' : 'text-slate-400 hover:text-white'
             }`}
           >
             <Mic className="w-4 h-4 text-amber-400 mb-0.5" />
             <span className="font-bold text-[11px] leading-tight">Say It Out Loud</span>
-            <span className="text-[9px] text-slate-400 font-normal">Original Stance</span>
+            <span className="text-[9px] text-slate-400 font-normal">Uncensored Opinion</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPostMode('demand')}
+            className={`py-2.5 px-2 rounded-xl transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
+              postMode === 'demand' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Building2 className="w-4 h-4 text-cyan-400 mb-0.5" />
+            <span className="font-bold text-[11px] leading-tight">Call Out Entity</span>
+            <span className="text-[9px] text-cyan-300/80 font-normal">Company / Institution</span>
           </button>
 
           <button
             type="button"
             onClick={() => setPostMode('linked')}
-            className={`py-2 px-2 rounded-xl transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
+            className={`py-2.5 px-2 rounded-xl transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
               postMode === 'linked' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm' : 'text-slate-400 hover:text-white'
             }`}
           >
             <LinkIcon className="w-4 h-4 text-purple-400 mb-0.5" />
             <span className="font-bold text-[11px] leading-tight">Link a Post</span>
             <span className="text-[9px] text-slate-400 font-normal">X, YouTube, Reddit</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setPostMode('demand')}
-            className={`py-2 px-2 rounded-xl transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
-              postMode === 'demand' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Megaphone className="w-4 h-4 text-cyan-400 mb-0.5" />
-            <span className="font-bold text-[11px] leading-tight">Demand Change</span>
-            <span className="text-[9px] text-slate-400 font-normal">Aim at a Brand</span>
           </button>
         </div>
 
@@ -188,27 +190,49 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             </div>
           )}
 
-          {/* Target Company input if in Demand Mode */}
+          {/* Target Company / Institution input if in Demand Mode */}
           {postMode === 'demand' && (
-            <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                Target Company, Brand, or Organization *
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-cyan-300 block">
+                Target Company, Institution, or Regulatory Body *
               </label>
               <input
                 type="text"
                 required
                 value={demandTarget}
                 onChange={(e) => setDemandTarget(e.target.value)}
-                placeholder="e.g. McDonald's, Tesla, Nintendo, Apple, Valve..."
-                className="w-full px-4 py-2.5 rounded-xl glass-card border border-cyan-500/30 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400/60"
+                placeholder="e.g. Tesla, Apple, McDonald's, OpenAI, Central Banks, FIFA..."
+                className="w-full px-4 py-2.5 rounded-xl glass-card border border-cyan-500/40 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
               />
+
+              {/* Quick suggestion chips */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-slate-400 font-mono">Popular:</span>
+                {quickTargets.map((target) => (
+                  <button
+                    type="button"
+                    key={target}
+                    onClick={() => setDemandTarget(target)}
+                    className="px-2 py-0.5 rounded-lg glass-segmented text-[10px] text-slate-300 hover:text-cyan-300 cursor-pointer"
+                  >
+                    {target}
+                  </button>
+                ))}
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-cyan-950/30 border border-cyan-500/20 text-[11px] text-cyan-200 leading-relaxed flex items-start gap-2">
+                <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Escalation Guarantee:</strong> When the crowd backs this demand with money, it rises to the top of the global board and forces the company/institution to officially respond on the public record.
+                </span>
+              </div>
             </div>
           )}
 
           <div>
             <label className="text-xs font-semibold text-slate-300 block mb-1.5">
               {postMode === 'demand'
-                ? 'What change are you demanding? *'
+                ? 'What change or accountability are you demanding? *'
                 : postMode === 'linked'
                 ? 'Your Uncensored Opinion on this Post *'
                 : 'What do you want to say out loud? *'}
@@ -221,10 +245,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               onChange={(e) => setTitle(e.target.value)}
               placeholder={
                 postMode === 'demand'
-                  ? 'e.g. Bring back physical climate knobs on all models...'
+                  ? 'e.g. Add physical buttons for wipers and climate control...'
                   : postMode === 'linked'
-                  ? 'e.g. This take completely misses the real economic reality...'
-                  : 'e.g. Messi is the greatest footballer of all time, no debate...'
+                  ? 'e.g. This policy will completely distort the housing market...'
+                  : 'e.g. Modern institutions are ignoring the real root cause of inflation...'
               }
               className="w-full px-4 py-2.5 rounded-xl glass-card border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/50"
             />
@@ -232,7 +256,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
           <div>
             <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-              Supporting Analysis / Context
+              Supporting Arguments / Context
             </label>
             <textarea
               rows={3}
@@ -245,10 +269,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
           <div>
             <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-              Initial Conviction Backing (Debit from Wallet):
+              Initial Conviction Backing:
             </label>
             <div className="grid grid-cols-4 gap-2">
-              {[100, 500, 1000, 2500].map((cents) => (
+              {[10, 50, 100, 500].map((cents) => (
                 <button
                   type="button"
                   key={cents}
@@ -259,7 +283,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                       : 'glass-card text-slate-300 hover:text-white'
                   }`}
                 >
-                  ${cents / 100}
+                  {cents < 100 ? `${cents}¢` : `$${cents / 100}`}
                 </button>
               ))}
             </div>

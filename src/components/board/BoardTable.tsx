@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Building2, Mic, Flame, Swords, Sparkles } from 'lucide-react';
 import { RankedPostView } from '@/lib/types';
 import { BoardRow } from './BoardRow';
 
@@ -15,10 +15,11 @@ interface BoardTableProps {
 }
 
 const TABS = [
-  { key: 'all', label: 'Global Arena' },
-  { key: 'top10', label: 'Top 10' },
-  { key: 'most_backed', label: 'Most Backed' },
-  { key: 'fights', label: 'Counter Fights' },
+  { key: 'all', label: 'All Stances', icon: Sparkles },
+  { key: 'demands', label: 'Companies & Institutions', icon: Building2 },
+  { key: 'opinions', label: 'Uncensored Opinions', icon: Mic },
+  { key: 'most_backed', label: 'Most Backed', icon: Flame },
+  { key: 'fights', label: 'Counter Fights', icon: Swords },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -43,12 +44,15 @@ export const BoardTable: React.FC<BoardTableProps> = ({
         (p) =>
           p.title.toLowerCase().includes(q) ||
           p.author_display.toLowerCase().includes(q) ||
+          (p.demand_target && p.demand_target.toLowerCase().includes(q)) ||
           (p.body && p.body.toLowerCase().includes(q))
       );
     }
 
-    if (activeTab === 'top10') {
-      list = list.slice(0, 10);
+    if (activeTab === 'demands') {
+      list = list.filter((p) => p.kind === 'demand' || Boolean(p.demand_target));
+    } else if (activeTab === 'opinions') {
+      list = list.filter((p) => p.kind === 'opinion' && !p.demand_target);
     } else if (activeTab === 'most_backed') {
       list.sort((a, b) => b.backers_count - a.backers_count);
     } else if (activeTab === 'fights') {
@@ -59,68 +63,72 @@ export const BoardTable: React.FC<BoardTableProps> = ({
   }, [board, searchQuery, activeTab]);
 
   return (
-    <div id="board-table" className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-      {/* Controls bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4">
-        <div className="seg overflow-x-auto">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`seg-item ${activeTab === tab.key ? 'seg-item-active' : ''}`}
-            >
-              {tab.label}
-              {tab.key === 'all' && (
-                <span className="tnum text-micro opacity-70">{board.length}</span>
-              )}
-            </button>
-          ))}
+    <div id="board-table" className="w-full space-y-4">
+      {/* Search and Navigation Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 glass-panel p-2 sm:p-2.5 rounded-2xl border border-white/10">
+        {/* Filter Tabs */}
+        <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-none">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === tab.key
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="relative min-w-[240px] sm:w-72">
-          <Search className="w-4 h-4 text-ink-3 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        {/* Search Bar */}
+        <div className="relative w-full sm:w-64">
           <input
             type="text"
+            placeholder="Search stances, brands, entities..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search the record…"
-            className="field pl-9 text-dense py-2"
+            className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-card text-xs text-white placeholder-slate-500 border border-white/10 focus:outline-none focus:border-amber-400/50"
           />
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
         </div>
       </div>
 
-      {/* The ledger */}
-      {filteredBoard.length > 0 ? (
-        <div className="panel rounded-card overflow-hidden">
-          {/* Column header */}
-          <div className="hidden lg:grid grid-cols-[3.5rem_1fr_auto] gap-4 items-center px-5 py-2.5 border-b border-line bg-black/20">
-            <span className="micro-label text-ink-3 text-right pr-1">Rank</span>
-            <span className="micro-label text-ink-3">Statement · On the permanent record</span>
-            <span className="micro-label text-ink-3 text-right pr-[13.5rem]">Score</span>
+      {/* Board Rows List */}
+      <div className="space-y-3">
+        {filteredBoard.length > 0 ? (
+          filteredBoard.map((post) => (
+            <BoardRow
+              key={post.id}
+              post={post}
+              onBoost={onBoost}
+              onCounter={onCounter}
+              onLikeExecuted={onLikeExecuted}
+              onInsufficientFunds={onInsufficientFunds}
+              isPulsing={pulsingPostId === post.id}
+            />
+          ))
+        ) : (
+          <div className="text-center py-16 glass-panel rounded-3xl border border-white/10">
+            <p className="text-slate-400 text-sm">No stances match your search or filter.</p>
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setActiveTab('all');
+              }}
+              className="mt-3 text-xs text-amber-400 hover:underline font-bold"
+            >
+              Reset Filters
+            </button>
           </div>
-
-          <div className="divide-y divide-line">
-            {filteredBoard.map((post) => (
-              <BoardRow
-                key={post.id}
-                post={post}
-                onBoost={onBoost}
-                onCounter={onCounter}
-                onLikeExecuted={onLikeExecuted}
-                onInsufficientFunds={onInsufficientFunds}
-                isPulsing={pulsingPostId === post.id}
-              />
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="panel rounded-card p-14 text-center">
-          <h3 className="text-base font-semibold text-ink">Nothing on the record matches</h3>
-          <p className="text-dense text-ink-3 mt-1.5 max-w-sm mx-auto">
-            Clear the filter — or be the first to put a stance on the board.
-          </p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
