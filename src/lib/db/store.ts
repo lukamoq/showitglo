@@ -52,6 +52,18 @@ import {
 import { getRequiredScoreToDisplace } from '../engine/strategies';
 import { eventBus } from '../engine/eventBus';
 import { getInsightsKMin } from '../env';
+import {
+  FIRST_LIGHT_MINUTES,
+  FIRST_LIGHT_RAIL_LIMIT,
+  centsToOvertake,
+  dedupeRungs,
+  firstLightSecondsRemaining,
+  pickRecommended,
+  productForCents,
+  superProduct,
+  type LadderRung,
+  type PriceLadder,
+} from '../firstLight';
 import { log } from '../log';
 import { queryPg, withTransaction } from './pg';
 
@@ -219,6 +231,7 @@ function mapPost(row: QueryResultRow): Post {
     like_units: num(row.like_units),
     streak_days: num(row.streak_days),
     created_at: iso(row.created_at),
+    first_light_until: isoOrNull(row.first_light_until),
     removed_at: isoOrNull(row.removed_at),
     removed_reason: row.removed_reason ?? null,
   };
@@ -1110,9 +1123,10 @@ export type NewPost = Omit<Post, 'id' | 'created_at'> & { id?: string; created_a
 const POST_INSERT_SQL = `INSERT INTO posts (id, slug, author_id, category_id, kind, demand_target, demand_target_user_id,
                         counter_of, title, body, media_url, is_ad, author_display, status, score_base,
                         total_raised_cents, backers_count, like_units, streak_days, source_url,
-                        source_platform, created_at)
+                        source_platform, created_at, first_light_until)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-             COALESCE($22::timestamptz, NOW()))
+             COALESCE($22::timestamptz, NOW()),
+             COALESCE($22::timestamptz, NOW()) + make_interval(mins => $23::int))
      RETURNING *`;
 
 /**
@@ -1145,6 +1159,7 @@ async function insertPost(client: PoolClient | null, post: NewPost): Promise<Pos
     post.source_url ?? null,
     post.source_platform ?? null,
     post.created_at ?? null,
+    FIRST_LIGHT_MINUTES,
   ]);
 
   return mapPost(res.rows[0]);
@@ -1463,6 +1478,204 @@ export async function getBoardStats(categoryId = 'global'): Promise<BoardStats> 
     top_display_score: cat
       ? round2(calculateDecayedScore(topScoreBase, Date.now(), cat.score_epoch, cat.half_life_hours))
       : 0,
+  };
+}
+
+// ==========================================================================
+// First Light — free visibility, and the price of keeping it
+// ==========================================================================
+
+/**
+ * Rank of one post on the live money board, expressed as SQL.
+ *
+ * It has to reproduce `getRankedBoard`'s ordering exactly — `score_base DESC,
+ * created_at ASC` — or the rank shown next to a price would not be the rank
+ * that price buys. `$1` is the category filter, `p` the post being ranked.
+ */
+const BOARD_RANK_SQL = `(
+  SELECT COUNT(*) + 1
+    FROM posts q
+   WHERE q.status = 'live'
+     AND ($1::text IS NULL OR q.category_id = $1)
+     AND ( q.score_base > p.score_base
+        OR (q.score_base = p.score_base AND q.created_at < p.created_at) )
+)`;
+
+export interface FirstLightEntry extends RankedPostView {
+  first_light_seconds_remaining: number;
+}
+
+/**
+ * The First Light rail: live posts still inside their free window, newest
+ * first.
+ *
+ * Ordering is by creation time and nothing else. That is the entire point —
+ * this is the one surface on ShowItGlo where money buys no position, so a
+ * stance with an empty wallet is seen for as long as the window lasts and not
+ * one second longer. `board_rank` rides along so the rail can show what the
+ * money board currently thinks of the same post.
+ */
+export async function getFirstLightRail(
+  categoryId = 'global',
+  limit = FIRST_LIGHT_RAIL_LIMIT
+): Promise<FirstLightEntry[]> {
+  const cat = await getCategory(categoryId);
+  if (!cat) return [];
+
+  const filter = categoryFilter(categoryId);
+  const res = await queryPg(
+    `SELECT p.*, ${BOARD_RANK_SQL} AS board_rank
+       FROM posts p
+      WHERE p.status = 'live'
+        AND ($1::text IS NULL OR p.category_id = $1)
+        AND p.first_light_until IS NOT NULL
+        AND p.first_light_until > NOW()
+      ORDER BY p.created_at DESC
+      LIMIT $2`,
+    [filter, Math.min(Math.max(1, limit), 50)]
+  );
+
+  const now = Date.now();
+  return res.rows.map((row) => {
+    const post = mapPost(row);
+    return {
+      ...post,
+      rank: num(row.board_rank),
+      display_score: round2(calculateDecayedScore(post.score_base, now, cat.score_epoch, cat.half_life_hours)),
+      rank_24h_delta: 0,
+      counter_post: null,
+      brand_response: null,
+      first_light_seconds_remaining: firstLightSecondsRemaining(post.first_light_until, now),
+    };
+  });
+}
+
+/**
+ * What it would cost, right now, to move one post past a given board position.
+ *
+ * Three rungs are priced: one place up, into the top ten, and the lead. Each
+ * one is the *true* minimum — enough to clear the target's score by a cent,
+ * not the increment strategy's recommended margin, which is a larger number
+ * and would overstate the requirement. `achieved_rank` is then counted against
+ * the live board rather than assumed, because clearing the post at rank 40
+ * also clears everyone tied with it, and a newcomer paying $0.50 to leave the
+ * unbacked floor usually jumps far further than one place.
+ *
+ * Nothing here is a quote. No row is written, no price is held, and a rung is
+ * only true at `computed_at` — the client re-reads it instead of settling
+ * against a figure it fetched a minute ago.
+ */
+export async function getPriceLadder(idOrSlug: string, categoryId?: string): Promise<PriceLadder> {
+  const post = await getPost(idOrSlug);
+  if (!post) throw new StoreError('POST_NOT_FOUND', 'Post not found.', 404);
+
+  // A post that is not on the board has no position to price. Pricing one
+  // anyway would quote a rank that no amount of money can actually buy.
+  if (post.status !== 'live') {
+    throw new StoreError('POST_NOT_RANKED', 'This post is not on the board.', 409);
+  }
+
+  const cat = await getCategory(categoryId || post.category_id);
+  if (!cat) throw new StoreError('CATEGORY_NOT_FOUND', 'Category not found.', 404);
+
+  const filter = categoryFilter(cat.id);
+  const now = Date.now();
+  const myScore = calculateDecayedScore(post.score_base, now, cat.score_epoch, cat.half_life_hours);
+
+  const [rankRes, sizeRes] = await Promise.all([
+    queryPg(`SELECT ${BOARD_RANK_SQL} AS board_rank FROM posts p WHERE p.id = $2`, [filter, post.id]),
+    queryPg(
+      `SELECT COUNT(*) AS n FROM posts WHERE status = 'live' AND ($1::text IS NULL OR category_id = $1)`,
+      [filter]
+    ),
+  ]);
+
+  const currentRank = num(rankRes.rows[0]?.board_rank, 1);
+  const boardSize = num(sizeRes.rows[0]?.n);
+
+  /** Where `cents` of fresh money would actually land this post. */
+  const achievedRankFor = async (cents: number): Promise<number> => {
+    const prospective =
+      post.score_base + calculateStoredDelta(cents, now, cat.score_epoch, cat.half_life_hours);
+    const ahead = await queryPg(
+      `SELECT COUNT(*) AS n FROM posts
+        WHERE status = 'live' AND ($1::text IS NULL OR category_id = $1)
+          AND id <> $2 AND score_base >= $3`,
+      [filter, post.id, prospective]
+    );
+    return num(ahead.rows[0]?.n) + 1;
+  };
+
+  /** Decayed score of whoever holds `rank`, or null if nobody does. */
+  const scoreAtRank = async (rank: number): Promise<number | null> => {
+    const res = await queryPg(
+      `SELECT score_base FROM posts
+        WHERE status = 'live' AND ($1::text IS NULL OR category_id = $1)
+        ORDER BY score_base DESC, created_at ASC
+        LIMIT 1 OFFSET $2`,
+      [filter, rank - 1]
+    );
+    if (!res.rows[0]) return null;
+    return calculateDecayedScore(num(res.rows[0].score_base), now, cat.score_epoch, cat.half_life_hours);
+  };
+
+  const targets: Array<{ rank: number; label: string }> = [
+    { rank: currentRank - 1, label: 'one place up' },
+    { rank: 10, label: 'top 10' },
+    { rank: 1, label: 'the lead' },
+  ].filter((t) => t.rank >= 1 && t.rank < currentRank);
+
+  const priced = await Promise.all(
+    targets.map(async ({ rank, label }): Promise<LadderRung | null> => {
+      const holderScore = await scoreAtRank(rank);
+      if (holderScore === null) return null;
+
+      const cents = centsToOvertake(holderScore, myScore);
+      if (cents <= 0) return null;
+
+      return {
+        target_rank: rank,
+        label,
+        cents,
+        achieved_rank: await achievedRankFor(cents),
+        product: productForCents(cents, cat.min_power_cents),
+      };
+    })
+  );
+
+  const rungs = dedupeRungs(priced.filter((r): r is LadderRung => r !== null));
+
+  // Every rung priced above a dollar and below the power-boost floor has no
+  // single product behind it. Rather than show a number nobody can pay in one
+  // action, say how far the largest one-tap purchase actually gets.
+  if (rungs.length > 0 && !pickRecommended(rungs)) {
+    const fallback = superProduct();
+    const achieved = await achievedRankFor(fallback.cents);
+    if (achieved < currentRank) {
+      rungs.unshift({
+        target_rank: achieved,
+        label: 'as far as $1.00 reaches',
+        cents: fallback.cents,
+        achieved_rank: achieved,
+        product: fallback,
+      });
+    }
+  }
+
+  return {
+    post_id: post.id,
+    slug: post.slug,
+    current_rank: currentRank,
+    display_score: round2(myScore),
+    board_size: boardSize,
+    rungs,
+    recommended: pickRecommended(rungs),
+    first_light: {
+      active: firstLightSecondsRemaining(post.first_light_until, now) > 0,
+      until: post.first_light_until ?? null,
+      seconds_remaining: firstLightSecondsRemaining(post.first_light_until, now),
+    },
+    computed_at: new Date(now).toISOString(),
   };
 }
 

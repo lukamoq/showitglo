@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 
 import { Navbar } from '@/components/layout/Navbar';
 import { WITHDRAWAL_CONSENT_TEXT } from '@/lib/consent';
+import { FIRST_LIGHT_MINUTES } from '@/lib/firstLight';
 import { TOPUP_MAX_CENTS, TOPUP_MIN_CENTS, WALLET_MAX_CENTS } from '@/lib/pricing';
 import { formatCents } from '@/lib/utils';
 
@@ -23,15 +24,16 @@ const DAILY_SPEND_CAP_CENTS = 5000;
 const SECTIONS: { id: string; title: string }[] = [
   { id: 'who-we-are', title: '1. Who we are, and what acceptance means' },
   { id: 'the-service', title: '2. The service, and what credits are' },
-  { id: 'spending-is-final', title: '3. Spending is immediate and final' },
-  { id: 'no-refund-on-outbid', title: '4. Being outbid is not a defect' },
-  { id: 'unspent-credits', title: '5. Unspent credits are refundable' },
-  { id: 'eu-withdrawal', title: '6. EU/EEA consumers: your 14-day right' },
-  { id: 'wallet-loss', title: '7. Your wallet is a cookie' },
-  { id: 'content-rules', title: '8. What you may publish, and moderation' },
-  { id: 'payments', title: '9. Payments, receipts and chargebacks' },
-  { id: 'liability', title: '10. Liability, governing law and changes' },
-  { id: 'contact', title: '11. Contact and version' },
+  { id: 'first-light', title: '3. First Light, ranking, and the prices we show' },
+  { id: 'spending-is-final', title: '4. Spending is immediate and final' },
+  { id: 'no-refund-on-outbid', title: '5. Being outbid is not a defect' },
+  { id: 'unspent-credits', title: '6. Unspent credits are refundable' },
+  { id: 'eu-withdrawal', title: '7. EU/EEA consumers: your 14-day right' },
+  { id: 'wallet-loss', title: '8. Your wallet is a cookie' },
+  { id: 'content-rules', title: '9. What you may publish, and moderation' },
+  { id: 'payments', title: '10. Payments, receipts and chargebacks' },
+  { id: 'liability', title: '11. Liability, governing law and changes' },
+  { id: 'contact', title: '12. Contact and version' },
 ];
 
 function Heading({ id, children }: { id: string; children: React.ReactNode }) {
@@ -194,7 +196,72 @@ export default function TermsPage() {
           </p>
 
           {/* ---------------------------------------------------------------- */}
-          <Heading id="spending-is-final">3. Spending is immediate and final</Heading>
+          <Heading id="first-light">3. First Light, ranking, and the prices we show</Heading>
+          <p>
+            Publishing on ShowItGlo is free and always has been. Because the main board is ordered by
+            money, a post nobody has backed would otherwise open at the bottom of it, so every new
+            post is also carried on <strong>First Light</strong> &mdash; a separate rail ordered by
+            time alone.
+          </p>
+          <ul className="list-disc pl-5 space-y-2 marker:text-ink-3 mt-3">
+            <li>
+              First Light lasts <strong className="tnum">{FIRST_LIGHT_MINUTES} minutes</strong> from
+              publication, for every post, with no payment and no condition attached. It cannot be
+              bought, extended, shortened or skipped, by you or by anyone else. We do not sell
+              placement on it and we do not accept payment to change its order.
+            </li>
+            <li>
+              The countdown you see is the real one. The end of the window is written when the post
+              is created and is what the rail itself queries &mdash; it is not a display device to
+              hurry you along, and nothing about your post changes if you ignore it.
+            </li>
+            <li>
+              When the window closes <strong>nothing is deleted, hidden or unpublished</strong>. The
+              post keeps its own page, stays in search and on the board, and simply holds whatever
+              position its backing has earned it.
+            </li>
+          </ul>
+
+          <p className="mt-4">
+            <strong>Ranking is arithmetic, and only arithmetic.</strong> A post&rsquo;s position is a
+            published formula over what has been paid into it, decaying on a fixed half-life. There
+            is no element of chance anywhere in it: no draw, no lottery, no random multiplier, no
+            jackpot and no prize pool. Nothing you spend is ever staked, returned, matched, or paid
+            out to you or to anyone else &mdash; it buys a score change and nothing more. ShowItGlo
+            is not a game of chance and is not gambling, and we will not add a mechanic that would
+            make it one.
+          </p>
+
+          <p className="mt-4">
+            <strong>The prices we quote are live estimates, not offers.</strong> In places we show
+            what it would cost, at that instant, to move a post past a given position. Please read
+            those numbers for what they are:
+          </p>
+          <ul className="list-disc pl-5 space-y-2 marker:text-ink-3 mt-3">
+            <li>
+              They are computed from the board as it stands at that second and are labelled with the
+              time they were computed. They are <strong>not reserved</strong>: nothing is held for
+              you, and no price is locked by looking at it.
+            </li>
+            <li>
+              They move whenever anyone else backs anything, which can happen between the moment a
+              figure is displayed and the moment you confirm. A figure that was accurate when shown
+              may buy a different position by the time it settles.
+            </li>
+            <li>
+              What you are charged is always the published price of the interaction you chose, set by
+              our server &mdash; never a number your browser sent us. <strong>You are buying the
+              interaction, not the position.</strong> No amount of spending buys a guaranteed rank,
+              a guaranteed audience, a guaranteed reply, or any particular outcome.
+            </li>
+          </ul>
+          <p className="mt-4">
+            The one exception is a <strong>power boost</strong>, which is priced by a quote we issue
+            and hold for the period stated on it. Everything else is priced at the moment it settles.
+          </p>
+
+          {/* ---------------------------------------------------------------- */}
+          <Heading id="spending-is-final">4. Spending is immediate and final</Heading>
           <p>
             Every paid interaction — a like, a boost, a super boost, a power boost, or backing a side
             of a debate — is performed the instant you confirm it. Your credits are debited, the
@@ -227,7 +294,7 @@ export default function TermsPage() {
           </p>
 
           {/* ---------------------------------------------------------------- */}
-          <Heading id="no-refund-on-outbid">4. Being outbid is not a defect</Heading>
+          <Heading id="no-refund-on-outbid">5. Being outbid is not a defect</Heading>
           <p>
             When you spend, <strong>you buy score at that moment</strong>. You are not buying a rank,
             and you are not buying a rank for a period of time.
@@ -251,7 +318,7 @@ export default function TermsPage() {
           </p>
 
           {/* ---------------------------------------------------------------- */}
-          <Heading id="unspent-credits">5. Unspent credits are refundable</Heading>
+          <Heading id="unspent-credits">6. Unspent credits are refundable</Heading>
           <p>
             Credits you have <strong>not spent</strong> are yours, and you can ask for them back at
             face value at any time: {formatCents(100)} of unspent credit is {formatCents(100)}{' '}
@@ -298,7 +365,7 @@ export default function TermsPage() {
           </p>
 
           {/* ---------------------------------------------------------------- */}
-          <Heading id="eu-withdrawal">6. EU/EEA consumers: your 14-day right</Heading>
+          <Heading id="eu-withdrawal">7. EU/EEA consumers: your 14-day right</Heading>
           <p>
             If you are a consumer in the EU or EEA, you normally have <strong>14 days</strong> to
             withdraw from a distance contract for digital content. Before you pay, we ask you to tick
@@ -332,7 +399,7 @@ export default function TermsPage() {
           </p>
 
           {/* ---------------------------------------------------------------- */}
-          <Heading id="wallet-loss">7. Your wallet is a cookie</Heading>
+          <Heading id="wallet-loss">8. Your wallet is a cookie</Heading>
           <p>
             ShowItGlo has no signup. Your identity is a random, signed identifier stored in a cookie
             named <code className="text-dense text-gold-text">sig_uid</code>, valid for up to 400
@@ -363,7 +430,7 @@ export default function TermsPage() {
           </p>
 
           {/* ---------------------------------------------------------------- */}
-          <Heading id="content-rules">8. What you may publish, and moderation</Heading>
+          <Heading id="content-rules">9. What you may publish, and moderation</Heading>
           <p>ShowItGlo is for stating opinions and demands. It is not for the following:</p>
           <ul className="list-disc pl-5 space-y-2 marker:text-ink-3 mt-3">
             <li>
@@ -432,7 +499,7 @@ export default function TermsPage() {
           </p>
 
           {/* ---------------------------------------------------------------- */}
-          <Heading id="payments">9. Payments, receipts and chargebacks</Heading>
+          <Heading id="payments">10. Payments, receipts and chargebacks</Heading>
           <p>
             Card payments are processed by <strong>Stripe</strong>. Card details travel from your
             browser to Stripe and never reach our servers, so we cannot see, store or leak them.
@@ -452,7 +519,7 @@ export default function TermsPage() {
           </p>
 
           {/* ---------------------------------------------------------------- */}
-          <Heading id="liability">10. Liability, governing law and changes</Heading>
+          <Heading id="liability">11. Liability, governing law and changes</Heading>
           <p>
             We run ShowItGlo with reasonable care, but we do not promise that it will be
             uninterrupted or free of errors, and we do not promise any ranking, audience or outcome.
@@ -487,7 +554,7 @@ export default function TermsPage() {
           </p>
 
           {/* ---------------------------------------------------------------- */}
-          <Heading id="contact">11. Contact and version</Heading>
+          <Heading id="contact">12. Contact and version</Heading>
           <div className="sunken rounded-control p-4 mt-3 text-dense text-ink-2 space-y-1.5">
             <div>
               <span className="micro-label block text-ink-3">Support, refunds, withdrawal</span>

@@ -96,6 +96,12 @@ export interface Post {
   like_units: number; // Total $0.01 likes
   streak_days: number;
   created_at: string;
+  /**
+   * End of the post's free First Light window — the stretch during which it is
+   * carried on the time-ordered rail regardless of what has been paid into it.
+   * NULL on rows created before the feature, which reads as "already closed".
+   */
+  first_light_until?: string | null;
   removed_at?: string | null;
   removed_reason?: string | null;
 }

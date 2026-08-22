@@ -42,6 +42,25 @@ board. Both sides are moderated before either is written and the pair is
 all-or-nothing: half a war never reaches the board. A war spends two of the
 author's five hourly posts, and each side may carry its own opening backing.
 
+**First Light.** Publishing is free, but a post nobody has backed opens at the
+bottom of a board ordered by money — so every new post is also carried on a
+second rail, `GET /api/v1/first-light`, ordered by time alone. The window is
+`FIRST_LIGHT_MINUTES` (60) from creation, written into `posts.first_light_until`
+at insert time and enforced by the rail's own query. It cannot be bought,
+extended or skipped, and when it closes nothing is deleted — the post simply
+holds the rank its backing earned.
+
+**The price ladder.** `GET /api/v1/posts/[id]/price-ladder` answers what it
+would cost, *at that instant*, to move a post past one place, into the top ten,
+and into the lead — plus where that money would actually land it, counted
+against the live board. Each rung is the **true minimum** (enough to clear the
+target's score by a cent), never the increment strategy's recommended margin,
+which is a larger number and would overstate the cost. It is an observation,
+not a quote: nothing is written, nothing is reserved, and it carries
+`computed_at` because anyone else spending moves it. Every charge is still
+priced server-side from `src/lib/pricing.ts`. `npm run test:math` covers the
+ladder arithmetic against the shipped module.
+
 **Presence.** "Live in arena" counts rows in `presence_heartbeats` seen in the
 last 90 seconds, keyed by an HMAC of the session id. The table stores no user
 id, no IP and nothing that links back to a person.
@@ -70,6 +89,10 @@ itself is shown once at creation and is not recoverable.
   `X-Forwarded-For` is read in memory to throttle posting and boosting bursts.
   It is not written to the database — the `audit_logs.ip_hash` column exists and
   is always `NULL`.
+- **No free credit, ever.** First Light gives away *visibility*, never spendable
+  balance: no endpoint mints credit, and `npm run verify:prod` fails if one
+  appears. Ranking is arithmetic with no element of chance — no draw, no random
+  multiplier, no prize pool, no payout. ShowItGlo is not a game of chance.
 - **Erasure is self-service.** `POST /api/v1/me/erase` with `{"confirm": true}`
   tombstones the calling session's own account, anonymises its display names and
   removes its posts. Financial rows are retained as books of record with their
@@ -80,8 +103,8 @@ itself is shown once at creation and is not recoverable.
 ## Quick start
 
 Requires Node 20+ and PostgreSQL 16. (`npm run test:math` additionally needs
-Node **22.18+ / 23.6+** — it imports `src/lib/engine/*.ts` directly rather than
-testing a copy of the formulas.)
+Node **22.18+ / 23.6+** — it imports `src/lib/engine/*.ts` and
+`src/lib/firstLight.ts` directly rather than testing a copy of the formulas.)
 
 ```bash
 npm install

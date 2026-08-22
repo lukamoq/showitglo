@@ -7,8 +7,10 @@ import { Navbar } from '@/components/layout/Navbar';
 import { WarTicker } from '@/components/layout/WarTicker';
 import { BoardHeader, BoardMission } from '@/components/board/BoardHeader';
 import { BoardTable } from '@/components/board/BoardTable';
+import { FirstLightRail } from '@/components/board/FirstLightRail';
 import { BoostDrawer } from '@/components/boost/BoostDrawer';
-import { CreatePostModal } from '@/components/post/CreatePostModal';
+import { CreatePostModal, type PostCreatedFollowUp } from '@/components/post/CreatePostModal';
+import { HoldYourGroundModal } from '@/components/post/HoldYourGroundModal';
 import { CreateWarPostModal } from '@/components/wars/CreateWarPostModal';
 import { CounterPostModal } from '@/components/post/CounterPostModal';
 import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
@@ -26,6 +28,12 @@ interface BoardResponse {
     total_boosts: number;
     distinct_payers: number;
   };
+}
+
+interface PublishedPost {
+  id: string;
+  slug: string;
+  title: string;
 }
 
 const EMPTY_METRICS = {
@@ -53,6 +61,9 @@ export default function HomePage() {
   const [topUpRecommendation, setTopUpRecommendation] = useState<number | undefined>(undefined);
   const [pulsingPostId, setPulsingPostId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [publishedPost, setPublishedPost] = useState<PublishedPost | null>(null);
+  const [publishedNote, setPublishedNote] = useState<string | null>(null);
+  const [railNonce, setRailNonce] = useState(0);
 
   const { balanceCents, refresh: refreshWallet } = useWallet();
 
@@ -125,11 +136,29 @@ export default function HomePage() {
     setTimeout(() => setToastMessage(null), 6000);
   };
 
-  const handlePostCreated = (post: unknown) => {
+  /**
+   * A post has just been published.
+   *
+   * Refreshing the board is the easy half. The important half is the follow-up
+   * panel: a stance published with an empty wallet sits at the bottom of a
+   * board ordered by money, and this is the one moment where its author is
+   * looking straight at that fact. The panel states the free window they
+   * already have and prices what holding rank would cost — it is not opened
+   * for posts created elsewhere in the app, only where an author just wrote
+   * something.
+   */
+  const handlePostCreated = (post: unknown, followUp?: PostCreatedFollowUp) => {
     void fetchBoardData();
-    const created = post as { title?: string };
+    setRailNonce((n) => n + 1);
+
+    const created = post as PublishedPost | null;
     setToastMessage(`"${created?.title ?? 'Your stance'}" entered the public arena.`);
     setTimeout(() => setToastMessage(null), 5000);
+
+    if (followUp?.followUp && created?.id && created?.slug) {
+      setPublishedNote(followUp.note ?? null);
+      setPublishedPost(created);
+    }
   };
 
   return (
@@ -147,6 +176,10 @@ export default function HomePage() {
       <Navbar onOpenCreate={() => setIsCreateOpen(true)} onBalanceUpdated={() => void refreshWallet()} />
 
       <WarTicker fights={fights} />
+
+      {/* Free, time-ordered, and above the money board on purpose: the case for
+          publishing has to land before the case for paying. */}
+      <FirstLightRail key={railNonce} onPublish={() => setIsCreateOpen(true)} />
 
       <BoardHeader
         category={category}
@@ -234,6 +267,21 @@ export default function HomePage() {
           void refreshWallet();
           setToastMessage('War declared — both sides are on the board and fighting for rank.');
           setTimeout(() => setToastMessage(null), 6000);
+        }}
+      />
+
+      <HoldYourGroundModal
+        isOpen={publishedPost !== null}
+        post={publishedPost}
+        note={publishedNote}
+        onClose={() => {
+          setPublishedPost(null);
+          setPublishedNote(null);
+          void refreshWallet();
+        }}
+        onBacked={() => {
+          void fetchBoardData();
+          void refreshWallet();
         }}
       />
 

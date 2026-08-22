@@ -4,7 +4,9 @@
  * it. Any route that derives a charge must do it from these constants.
  */
 
-import { InteractionKind } from './types';
+// Type-only: `pricing.ts` must stay free of runtime imports so the canon can be
+// loaded directly by `npm run test:math` without a transpile step.
+import type { InteractionKind } from './types';
 
 /** One "like" unit. Likes are sold in batches of 1..100 units. */
 export const LIKE_UNIT_CENTS = 1;

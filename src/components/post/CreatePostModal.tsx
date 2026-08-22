@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { X, Sparkles, AlertCircle, Zap, Mic, Link as LinkIcon, Building2, Flame } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+import { FIRST_LIGHT_MINUTES } from '@/lib/firstLight';
 import { runGate0Moderation } from '@/lib/moderation/gate0';
 import { formatCents } from '@/lib/utils';
 import { apiPost, errorText, insufficientFunds, recommendedTopUpCents, useDisplayName } from '../system/api';
@@ -14,17 +15,25 @@ import { useModalChrome } from '../system/useModalChrome';
 import { useWallet } from '../system/useWallet';
 import { WalletTopUpModal } from '../wallet/WalletTopUpModal';
 
+/** What the page should do once the post exists, beyond refreshing the board. */
+export interface PostCreatedFollowUp {
+  /** Open the post-publish panel: the free window, and the price of holding rank. */
+  followUp: boolean;
+  /** Surfaced at the top of that panel — e.g. an opening bid that did not settle. */
+  note?: string;
+}
+
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onPostCreated: (post: unknown) => void;
+  onPostCreated: (post: unknown, followUp?: PostCreatedFollowUp) => void;
 }
 
 /** The server only accepts these initial backings; anything else is a 400. */
 const BACKING_OPTIONS = [0, 10, 100, 1000];
 
 interface CreatePostResponse {
-  post?: { id: string; title: string };
+  post?: { id: string; slug: string; title: string };
   boost_error?: { shortfall_cents?: number; message?: string };
 }
 
@@ -110,13 +119,20 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       return;
     }
 
-    // The post exists; only the optional backing failed. Say so rather than
-    // closing as if everything worked.
+    // The post exists; only the optional backing failed. That is exactly what
+    // the post-publish panel is for — it prices the live board and can fund the
+    // wallet — so hand off rather than leaving the author in a form with an
+    // error and no way to finish.
     if (res.data.boost_error) {
-      const shortfallCents = res.data.boost_error.shortfall_cents ?? 0;
-      setTopUpRecommendation(recommendedTopUpCents(shortfallCents));
-      setErrorMsg('Your stance is live, but the initial backing could not be charged — add funds and boost it.');
-      onPostCreated(res.data.post);
+      onPostCreated(res.data.post, {
+        followUp: true,
+        note: 'Your stance is published, but the opening backing could not be charged.',
+      });
+      onClose();
+      setTitle('');
+      setContent('');
+      setSourceUrl('');
+      setDemandTarget('');
       return;
     }
 
@@ -126,7 +142,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       origin: { y: 0.6 },
       colors: ['#F0A824', '#FFC53D', '#FFFFFF'],
     });
-    onPostCreated(res.data.post);
+    onPostCreated(res.data.post, { followUp: true });
     onClose();
     setTitle('');
     setContent('');
@@ -304,6 +320,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                 <span className="kicker block mb-1.5" id="initial-backing-label">
                   Initial conviction backing
                 </span>
+                {/* Said before the amounts, not after: "None" has to read as a
+                    real choice, because it is one. */}
+                <p className="text-micro text-ink-3 mb-2 leading-relaxed">
+                  Optional. Every new stance is carried free on{' '}
+                  <span className="text-ink-2">First Light</span> for {FIRST_LIGHT_MINUTES} minutes,
+                  newest first, whatever you back it with — including nothing. Backing decides where it
+                  ranks once that window closes.
+                </p>
                 <div className="grid grid-cols-4 gap-2" role="group" aria-labelledby="initial-backing-label">
                   {BACKING_OPTIONS.map((cents) => (
                     <button

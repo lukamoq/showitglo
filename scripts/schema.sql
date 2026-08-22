@@ -127,6 +127,16 @@ CREATE TABLE IF NOT EXISTS posts (
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS source_url      TEXT;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS source_platform TEXT;
 
+-- First Light: the free, time-ordered visibility window every new post gets.
+-- NULL means "no window was ever granted" (seeded and pre-existing rows), which
+-- reads the same as an expired one everywhere it is queried.
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS first_light_until TIMESTAMPTZ;
+
+-- The rail query: live posts whose window is still open, newest first.
+CREATE INDEX IF NOT EXISTS idx_posts_first_light
+  ON posts(first_light_until DESC)
+  WHERE status = 'live' AND first_light_until IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_posts_score ON posts(category_id, status, score_base DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug);
 CREATE INDEX IF NOT EXISTS idx_posts_counter ON posts(counter_of);
