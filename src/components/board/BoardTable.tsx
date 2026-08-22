@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import { RankedPostView } from '@/lib/types';
 import { BoardRow } from './BoardRow';
+import { TapPriceToggle } from '../interactions/TapPriceToggle';
 
 interface BoardTableProps {
   board: RankedPostView[];
@@ -95,6 +96,13 @@ export const BoardTable: React.FC<BoardTableProps> = ({
               className="min-w-0 flex-1 border-0 bg-transparent p-0 text-dense text-ink placeholder:text-ink-3 outline-none"
             />
           </div>
+        </div>
+
+        {/* Its own hairline row: in the row above it squeezed the filter tabs
+            into an ellipsis, and it belongs to the Back-it column rather than
+            to filtering anyway. */}
+        <div className="px-4 sm:px-5 py-2.5 border-b border-line bg-white/[0.015]">
+          <TapPriceToggle />
         </div>
 
         {/* Column rule — states the row grammar once instead of on every row. */}

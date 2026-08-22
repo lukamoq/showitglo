@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Heart } from 'lucide-react';
 
 import { apiPost, errorText, hasCode, insufficientFunds, newIdempotencyKey } from '../system/api';
+import { TAPS_PER_PENNY, useTapPriceMode } from './tapPrice';
 
 interface HoldToLikeButtonProps {
   postId: string;
@@ -30,7 +31,20 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
   onInsufficientFunds,
   onLikeCapReached,
 }) => {
+  const tapPriceMode = useTapPriceMode();
+  const isTenthMode = tapPriceMode === 'tenth';
+
   const [likesCount, setLikesCount] = useState<number>(initialLikes);
+  /**
+   * Taps banked towards the next penny, 0..TAPS_PER_PENNY-1.
+   *
+   * Deliberately not persisted. A tap that has not reached the tenth has
+   * bought nothing and promised nothing, and resurrecting a half-finished
+   * count days later would charge someone for a gesture they have forgotten
+   * making. It survives re-renders and board refreshes (rows are keyed by
+   * post id), which is the span that actually matters.
+   */
+  const [tapProgress, setTapProgress] = useState(0);
   const [isHolding, setIsHolding] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -38,7 +52,13 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
   const [floatingBubbles, setFloatingBubbles] = useState<Array<{ id: number; text: string }>>([]);
 
   const holdIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Ticks banked by the current hold: like-units in penny mode, taps in tenth mode. */
   const accumulatedUnitsRef = useRef<number>(0);
+  /** Mirrors `tapProgress` for the interval and hold callbacks, which close over stale state. */
+  const tapProgressRef = useRef(0);
+  /** Progress at the moment a hold began. The hold's own ticks are counted
+   *  from here, so the running total never reads back its own writes. */
+  const holdStartProgressRef = useRef(0);
   const inFlightRef = useRef(false);
   /** True when the click that follows mouseup belongs to a hold, not a tap. */
   const didHoldRef = useRef(false);
@@ -58,9 +78,19 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
   /** A key belongs to one post's batch; never carry it to a different post. */
   useEffect(() => {
     pendingBatchRef.current = null;
+    tapProgressRef.current = 0;
+    setTapProgress(0);
     setErrorMsg(null);
     setNoticeMsg(null);
   }, [postId]);
+
+  /* Switching price mode abandons a half-finished penny rather than carrying
+     the count across: nine taps banked at a tenth of a penny each mean
+     something different once a tap costs a full penny. */
+  useEffect(() => {
+    tapProgressRef.current = 0;
+    setTapProgress(0);
+  }, [tapPriceMode]);
 
   useEffect(
     () => () => {
@@ -78,8 +108,8 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
   };
 
   const sendLikesBatch = useCallback(
-    async (units: number) => {
-      if (inFlightRef.current || units < 1) return;
+    async (units: number): Promise<boolean> => {
+      if (inFlightRef.current || units < 1) return false;
       inFlightRef.current = true;
       setIsSending(true);
       setErrorMsg(null);
@@ -106,7 +136,7 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
           setNoticeMsg('Already counted — your balance is up to date.');
         }
         if (onLikeExecuted) onLikeExecuted(applied, likesCount + applied);
-        return;
+        return true;
       }
 
       // Every failure path below leaves the counter untouched — the optimistic
@@ -116,22 +146,66 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
         pendingBatchRef.current = null;
         setErrorMsg('Not enough wallet balance.');
         if (onInsufficientFunds) onInsufficientFunds(shortfall.shortfallCents);
-        return;
+        return false;
       }
 
       if (hasCode(res, 'LIKE_CAP_REACHED')) {
         pendingBatchRef.current = null;
         setErrorMsg('Daily like limit reached for this post — try a boost.');
         if (onLikeCapReached) onLikeCapReached();
-        return;
+        return false;
       }
 
       // A network failure keeps the key so pressing again retries the SAME
       // attempt rather than risking a second charge.
       if (!res.networkError) pendingBatchRef.current = null;
       setErrorMsg(errorText(res, 'Could not register that like.'));
+      return false;
     },
     [postId, onLikeExecuted, onInsufficientFunds, onLikeCapReached, likesCount]
+  );
+
+  const setProgress = useCallback((taps: number) => {
+    tapProgressRef.current = taps;
+    setTapProgress(taps);
+  }, []);
+
+  /**
+   * Bank `taps` towards the next penny and charge for each whole penny reached.
+   *
+   * The charge itself is an ordinary like of N units — the server is not told
+   * about tenths and has no concept of them. Ten taps simply decide *when* one
+   * of its 1¢ likes is sent.
+   */
+  const commitTaps = useCallback(
+    async (taps: number) => {
+      const total = tapProgressRef.current + taps;
+      const pennies = Math.floor(total / TAPS_PER_PENNY);
+      const remainder = total % TAPS_PER_PENNY;
+
+      if (pennies < 1) {
+        // No bubble: the count and the bar under the button already say where
+        // this tap landed, and one bubble per tap stacks up over the row.
+        setProgress(total);
+        return;
+      }
+
+      // Cleared before the request, so a second tap during the round trip
+      // starts the next penny instead of re-sending this one.
+      setProgress(remainder);
+      triggerBubble(`+${pennies}¢`);
+
+      const ok = await sendLikesBatch(Math.min(pennies, 100));
+      if (ok) return;
+
+      /* Nothing was charged, so nothing is owed — but handing back every
+         banked tap would make the retry cost several pennies at once, which
+         is not what someone tapping a tenth at a time is asking for. The
+         count is restored to one tap short of a penny: the next single tap
+         retries exactly 1¢. */
+      setProgress(Math.min(total, TAPS_PER_PENNY - 1));
+    },
+    [sendLikesBatch, setProgress]
   );
 
   const stopHold = useCallback(() => {
@@ -140,23 +214,51 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
       clearInterval(holdIntervalRef.current);
       holdIntervalRef.current = null;
     }
-    const units = accumulatedUnitsRef.current;
+    const ticks = accumulatedUnitsRef.current;
     accumulatedUnitsRef.current = 0;
-    didHoldRef.current = units > 0;
-    if (units > 0) void sendLikesBatch(units);
-  }, [sendLikesBatch]);
+    didHoldRef.current = ticks > 0;
+    if (ticks <= 0) return;
+
+    if (isTenthMode) {
+      /* Counted from where the hold started, not from the progress the hold
+         has itself been advancing. Whole pennies settle now; the remainder
+         stays banked towards the next one. */
+      const total = holdStartProgressRef.current + ticks;
+      const pennies = Math.floor(total / TAPS_PER_PENNY);
+      setProgress(total % TAPS_PER_PENNY);
+      if (pennies > 0) void sendLikesBatch(Math.min(pennies, 100));
+      return;
+    }
+    void sendLikesBatch(ticks);
+  }, [sendLikesBatch, commitTaps, isTenthMode]);
 
   const startHold = useCallback(() => {
     if (inFlightRef.current || holdIntervalRef.current) return;
     setIsHolding(true);
     accumulatedUnitsRef.current = 0;
+    holdStartProgressRef.current = tapProgressRef.current;
 
     holdIntervalRef.current = setInterval(() => {
       accumulatedUnitsRef.current += 1;
-      triggerBubble(`+${accumulatedUnitsRef.current}¢`);
-      if (accumulatedUnitsRef.current >= 100) stopHold();
+      const ticks = accumulatedUnitsRef.current;
+
+      if (isTenthMode) {
+        // A held tick is worth one tap. Only whole pennies are announced —
+        // the tenths are visible on the button itself.
+        const banked = holdStartProgressRef.current + ticks;
+        if (banked > 0 && banked % TAPS_PER_PENNY === 0) {
+          triggerBubble(`+${Math.floor(banked / TAPS_PER_PENNY)}¢`);
+        }
+        setProgress(banked % TAPS_PER_PENNY);
+        // Same 100-unit ceiling as penny mode, counted in taps.
+        if (ticks >= 100 * TAPS_PER_PENNY) stopHold();
+        return;
+      }
+
+      triggerBubble(`+${ticks}¢`);
+      if (ticks >= 100) stopHold();
     }, 150);
-  }, [stopHold]);
+  }, [stopHold, isTenthMode]);
 
   const handleClick = () => {
     // The click that follows a hold's mouseup already sent its batch.
@@ -165,6 +267,12 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
       return;
     }
     if (inFlightRef.current) return;
+
+    if (isTenthMode) {
+      void commitTaps(1);
+      return;
+    }
+
     triggerBubble('+1¢');
     void sendLikesBatch(1);
   };
@@ -192,19 +300,48 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
         onTouchStart={startHold}
         onTouchEnd={stopHold}
         disabled={isSending}
-        aria-label={`Back this stance with a 1 cent like. ${likesCount} likes so far.`}
+        aria-label={
+          isTenthMode
+            ? `Back this stance. ${TAPS_PER_PENNY} taps spend 1 cent; ${tapProgress} of ${TAPS_PER_PENNY} tapped so far, nothing is charged until the ${TAPS_PER_PENNY}th. ${likesCount} likes on this stance.`
+            : `Back this stance with a 1 cent like. ${likesCount} likes so far.`
+        }
         aria-describedby={errorMsg ? `like-error-${postId}` : undefined}
         className={`btn btn-xs ${
           isHolding ? 'btn-danger' : 'btn-ghost hover:border-down/40'
         }`}
-        title="Tap to give $0.01, hold to rapid-fire"
+        title={
+          isTenthMode
+            ? `${TAPS_PER_PENNY} taps give $0.01 — ${tapProgress} of ${TAPS_PER_PENNY} so far. Nothing is charged until the ${TAPS_PER_PENNY}th tap.`
+            : 'Tap to give $0.01, hold to rapid-fire'
+        }
       >
         <Heart
           className={`h-3.5 w-3.5 ${isHolding ? 'fill-white' : 'fill-down/25 text-down/80'}`}
         />
         <span className="tnum">{likesCount.toLocaleString()}</span>
-        <span className="hidden text-micro text-ink-3 sm:inline">{isSending ? '…' : '1¢'}</span>
+        {/* "1¢" is a fixed price worth hiding on a narrow screen; the tap
+            count is live feedback, and a phone is where the tapping happens —
+            so it stays visible at every width. */}
+        <span
+          className={`text-micro text-ink-3 tnum ${isTenthMode ? '' : 'hidden sm:inline'}`}
+        >
+          {isSending ? '…' : isTenthMode ? `${tapProgress}/${TAPS_PER_PENNY}` : '1¢'}
+        </span>
       </button>
+
+      {/* Progress towards the next penny. Rendered only while a penny is part
+          way there, so a button nobody has tapped looks exactly as before. */}
+      {isTenthMode && tapProgress > 0 && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-1 -bottom-0.5 h-0.5 overflow-hidden rounded-full bg-line"
+        >
+          <span
+            className="block h-full bg-down/70 transition-[width] duration-150"
+            style={{ width: `${(tapProgress / TAPS_PER_PENNY) * 100}%` }}
+          />
+        </span>
+      )}
 
       {errorMsg && (
         <span
