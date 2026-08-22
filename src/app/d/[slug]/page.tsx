@@ -236,7 +236,7 @@ export default function SingleDebatePage() {
 
             {/* Free vs Paid Conviction Switcher */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-white/5">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -244,12 +244,12 @@ export default function SingleDebatePage() {
                     onChange={(e) => setIsPaidConviction(e.target.checked)}
                     className="rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-amber-400"
                   />
-                  <span>Attach Paid Conviction Boost</span>
+                  <span>Optional Micro-Boost</span>
                 </label>
 
                 {isPaidConviction && (
-                  <div className="flex items-center gap-1.5">
-                    {[10, 50, 100, 500].map((cents) => (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[1, 5, 10, 25, 50, 100].map((cents) => (
                       <button
                         type="button"
                         key={cents}
@@ -258,7 +258,7 @@ export default function SingleDebatePage() {
                           boostAmountCents === cents ? 'bg-amber-500 text-black' : 'glass-card text-slate-400 hover:text-white'
                         }`}
                       >
-                        ${(cents / 100).toFixed(cents < 100 ? 2 : 0)}
+                        {cents < 100 ? `${cents}¢` : `$${cents / 100}`}
                       </button>
                     ))}
                   </div>
@@ -275,8 +275,8 @@ export default function SingleDebatePage() {
                   {isSubmittingOpinion
                     ? 'Publishing Argument...'
                     : isPaidConviction
-                    ? `Post Argument + Boost (${formatUSD(boostAmountCents / 100)})`
-                    : 'Post Opinion & Cast Vote (Free)'}
+                    ? `Post Argument + ${boostAmountCents < 100 ? `${boostAmountCents}¢` : `$${boostAmountCents / 100}`} Boost`
+                    : '⚡ Cast Vote & Post Opinion ($0.00 Free)'}
                 </span>
               </button>
             </div>
