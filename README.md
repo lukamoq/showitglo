@@ -35,6 +35,13 @@ on when the boost happened, the *ordering* of posts never changes with the
 evaluation time — the leaderboard cannot silently reshuffle between two page
 loads. `npm run test:math` proves that property against the shipped code.
 
+**Wars.** `POST /api/v1/wars` publishes two rival stances in one transaction —
+side B carries `counter_of = A.id`, the same edge a rebuttal creates, so a
+declared war and an argument that grew organically are the same object on the
+board. Both sides are moderated before either is written and the pair is
+all-or-nothing: half a war never reaches the board. A war spends two of the
+author's five hourly posts, and each side may carry its own opening backing.
+
 **Presence.** "Live in arena" counts rows in `presence_heartbeats` seen in the
 last 90 seconds, keyed by an HMAC of the session id. The table stores no user
 id, no IP and nothing that links back to a person.

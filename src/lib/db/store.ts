@@ -1105,55 +1105,63 @@ export async function getPostsByStatus(status: PostStatus, limit = 100): Promise
  * here because `posts.id` is a UUID column and older call sites minted their
  * own `post_<timestamp>` strings.
  */
-export async function createPost(
-  post: Omit<Post, 'id' | 'created_at'> & { id?: string; created_at?: string }
-): Promise<Post> {
-  const id = isUuid(post.id) ? post.id : randomUUID();
-  const res = await queryPg(
-    `INSERT INTO posts (id, slug, author_id, category_id, kind, demand_target, demand_target_user_id,
+export type NewPost = Omit<Post, 'id' | 'created_at'> & { id?: string; created_at?: string };
+
+const POST_INSERT_SQL = `INSERT INTO posts (id, slug, author_id, category_id, kind, demand_target, demand_target_user_id,
                         counter_of, title, body, media_url, is_ad, author_display, status, score_base,
                         total_raised_cents, backers_count, like_units, streak_days, source_url,
                         source_platform, created_at)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
              COALESCE($22::timestamptz, NOW()))
-     RETURNING *`,
-    [
-      id,
-      post.slug,
-      post.author_id,
-      post.category_id || 'global',
-      post.kind || 'opinion',
-      post.demand_target ?? null,
-      isUuid(post.demand_target_user_id) ? post.demand_target_user_id : null,
-      isUuid(post.counter_of) ? post.counter_of : null,
-      post.title,
-      post.body ?? null,
-      post.media_url ?? null,
-      !!post.is_ad,
-      post.author_display,
-      post.status || 'pending_review',
-      num(post.score_base),
-      num(post.total_raised_cents),
-      num(post.backers_count),
-      num(post.like_units),
-      num(post.streak_days),
-      post.source_url ?? null,
-      post.source_platform ?? null,
-      post.created_at ?? null,
-    ]
-  );
+     RETURNING *`;
 
-  const created = mapPost(res.rows[0]);
+/**
+ * One insert, usable on the pool or inside an open transaction. `createPost`
+ * and `createWarPair` must write identical rows — a second copy of this column
+ * list is how the two paths drift apart.
+ */
+async function insertPost(client: PoolClient | null, post: NewPost): Promise<Post> {
+  const id = isUuid(post.id) ? post.id : randomUUID();
+  const res = await run(client, POST_INSERT_SQL, [
+    id,
+    post.slug,
+    post.author_id,
+    post.category_id || 'global',
+    post.kind || 'opinion',
+    post.demand_target ?? null,
+    isUuid(post.demand_target_user_id) ? post.demand_target_user_id : null,
+    isUuid(post.counter_of) ? post.counter_of : null,
+    post.title,
+    post.body ?? null,
+    post.media_url ?? null,
+    !!post.is_ad,
+    post.author_display,
+    post.status || 'pending_review',
+    num(post.score_base),
+    num(post.total_raised_cents),
+    num(post.backers_count),
+    num(post.like_units),
+    num(post.streak_days),
+    post.source_url ?? null,
+    post.source_platform ?? null,
+    post.created_at ?? null,
+  ]);
+
+  return mapPost(res.rows[0]);
+}
+
+function creationAction(post: Post): string {
+  if (post.kind === 'demand') return 'create_demand';
+  return post.counter_of ? 'create_counter_opinion' : 'create_opinion';
+}
+
+export async function createPost(post: NewPost): Promise<Post> {
+  const created = await insertPost(null, post);
 
   await logAudit({
     actor_id: created.author_id,
     actor_type: 'user',
-    action:
-      created.kind === 'demand'
-        ? 'create_demand'
-        : created.counter_of
-          ? 'create_counter_opinion'
-          : 'create_opinion',
+    action: creationAction(created),
     entity_type: 'post',
     entity_id: created.id,
     detail: { title: created.title, slug: created.slug, kind: created.kind, demand_target: created.demand_target },
@@ -1162,6 +1170,51 @@ export async function createPost(
 
   eventBus.publish('board:global', { type: 'new_post', post_id: created.id });
   return created;
+}
+
+export interface WarPair {
+  post_a: Post;
+  post_b: Post;
+}
+
+/**
+ * Publishes two rival stances as a single indivisible act.
+ *
+ * Both rows go in one transaction because half a war is not a smaller war —
+ * it is an accidental solo post the author never chose to make. Side B carries
+ * `counter_of = A.id`, the same link a rebuttal uses, so the pair enters the
+ * fights ledger without a second, parallel notion of "paired" existing
+ * anywhere in the schema.
+ */
+export async function createWarPair(sideA: NewPost, sideB: Omit<NewPost, 'counter_of'>): Promise<WarPair> {
+  const pair = await withTransaction(async (client) => {
+    const postA = await insertPost(client, { ...sideA, counter_of: null });
+    const postB = await insertPost(client, { ...sideB, counter_of: postA.id });
+
+    for (const [side, post, opponent] of [
+      ['a', postA, postB],
+      ['b', postB, postA],
+    ] as const) {
+      await insertAudit(client, {
+        actor_id: post.author_id,
+        actor_type: 'user',
+        action: 'create_war_side',
+        entity_type: 'post',
+        entity_id: post.id,
+        detail: { title: post.title, slug: post.slug, war_side: side, opponent_id: opponent.id },
+        ip_hash: null,
+      });
+    }
+
+    return { post_a: postA, post_b: postB };
+  });
+
+  // Published after COMMIT: a subscriber that refetches the board on this event
+  // would otherwise race an uncommitted pair and render a war with one side.
+  eventBus.publish('board:global', { type: 'new_post', post_id: pair.post_a.id });
+  eventBus.publish('board:global', { type: 'new_post', post_id: pair.post_b.id });
+
+  return pair;
 }
 
 // ==========================================================================
@@ -2683,23 +2736,47 @@ export async function getDebateBySlug(slug: string): Promise<DebateView | null> 
  * (rankA − rankB) flipped. No events ⇒ 0.
  */
 export async function getFights(): Promise<FightPair[]> {
+  const cat = await getCategory('global');
+  if (!cat) return [];
+
   const board = await getRankedBoard('global', { limit: 50 });
-  if (board.length === 0) return [];
+
+  // Declared pairs come from the table, not from the visible page of the
+  // board. A war posted a minute ago starts at score zero — pairing only what
+  // already sits in the top 50 would keep it out of the fights ledger until
+  // somebody paid to lift it, which is exactly backwards for a brand new
+  // fight nobody has backed yet.
+  const linked = await queryPg(
+    `SELECT child.id AS child_id, parent.id AS parent_id
+       FROM posts child
+       JOIN posts parent ON parent.id = child.counter_of
+      WHERE child.status = 'live' AND parent.status = 'live'
+      ORDER BY (child.score_base + parent.score_base) DESC, child.created_at DESC
+      LIMIT 24`
+  );
 
   const byId = new Map(board.map((p) => [p.id, p]));
+  const offBoard = linked.rows
+    .flatMap((row) => [row.parent_id as string, row.child_id as string])
+    .filter((id) => !byId.has(id));
+
+  // One batched lookup for the pair members that are not on the visible page.
+  const ranked = await fetchRankedByIds(offBoard, categoryFilter('global'), cat);
+  const viewOf = (id: string): RankedPostView | null => byId.get(id) ?? ranked.get(id) ?? null;
+
   const pairs: Array<{ id: string; a: RankedPostView; b: RankedPostView }> = [];
   const used = new Set<string>();
 
-  for (const post of board) {
-    if (!post.counter_of) continue;
-    const opponent = byId.get(post.counter_of);
-    if (!opponent) continue;
-    pairs.push({ id: `fight_${post.id}_${opponent.id}`, a: opponent, b: post });
-    used.add(post.id);
-    used.add(opponent.id);
+  for (const row of linked.rows) {
+    const parent = viewOf(row.parent_id as string);
+    const child = viewOf(row.child_id as string);
+    if (!parent || !child) continue;
+    pairs.push({ id: `fight_${child.id}_${parent.id}`, a: parent, b: child });
+    used.add(child.id);
+    used.add(parent.id);
   }
 
-  for (let i = 0; i < Math.min(board.length - 1, 6); i += 2) {
+  for (let i = 0; i < Math.max(0, Math.min(board.length - 1, 6)); i += 2) {
     const p1 = board[i];
     const p2 = board[i + 1];
     if (!p1 || !p2) continue;

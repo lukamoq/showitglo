@@ -1,23 +1,20 @@
-"use client";
+'use client';
 
-import React, { useCallback, useEffect, useState } from "react";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import React, { useCallback, useEffect, useState } from 'react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
-import { Navbar } from "@/components/layout/Navbar";
-import { WarTicker } from "@/components/layout/WarTicker";
-import { BoardHeader, BoardMission } from "@/components/board/BoardHeader";
-import { BoardTable } from "@/components/board/BoardTable";
-import { BoostDrawer } from "@/components/boost/BoostDrawer";
-import { CreatePostModal } from "@/components/post/CreatePostModal";
-import { CounterPostModal } from "@/components/post/CounterPostModal";
-import { WalletTopUpModal } from "@/components/wallet/WalletTopUpModal";
-import {
-  apiGet,
-  errorText,
-  recommendedTopUpCents,
-} from "@/components/system/api";
-import { useWallet } from "@/components/system/useWallet";
-import { RankedPostView, FightPair, Category } from "@/lib/types";
+import { Navbar } from '@/components/layout/Navbar';
+import { WarTicker } from '@/components/layout/WarTicker';
+import { BoardHeader, BoardMission } from '@/components/board/BoardHeader';
+import { BoardTable } from '@/components/board/BoardTable';
+import { BoostDrawer } from '@/components/boost/BoostDrawer';
+import { CreatePostModal } from '@/components/post/CreatePostModal';
+import { CreateWarPostModal } from '@/components/wars/CreateWarPostModal';
+import { CounterPostModal } from '@/components/post/CounterPostModal';
+import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
+import { apiGet, errorText, recommendedTopUpCents } from '@/components/system/api';
+import { useWallet } from '@/components/system/useWallet';
+import { RankedPostView, FightPair, Category } from '@/lib/types';
 
 interface BoardResponse {
   category: Category;
@@ -46,28 +43,25 @@ export default function HomePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [selectedPostForBoost, setSelectedPostForBoost] =
-    useState<RankedPostView | null>(null);
+  const [selectedPostForBoost, setSelectedPostForBoost] = useState<RankedPostView | null>(null);
   const [isBoostOpen, setIsBoostOpen] = useState(false);
-  const [selectedPostForCounter, setSelectedPostForCounter] =
-    useState<RankedPostView | null>(null);
+  const [selectedPostForCounter, setSelectedPostForCounter] = useState<RankedPostView | null>(null);
   const [isCounterOpen, setIsCounterOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreateWarOpen, setIsCreateWarOpen] = useState(false);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
-  const [topUpRecommendation, setTopUpRecommendation] = useState<
-    number | undefined
-  >(undefined);
+  const [topUpRecommendation, setTopUpRecommendation] = useState<number | undefined>(undefined);
   const [pulsingPostId, setPulsingPostId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const { balanceCents, refresh: refreshWallet } = useWallet();
 
   const fetchBoardData = useCallback(async () => {
-    const res = await apiGet<BoardResponse>("/api/v1/boards/global");
+    const res = await apiGet<BoardResponse>('/api/v1/boards/global');
     setIsLoading(false);
 
     if (!res.ok || !res.data?.board) {
-      setLoadError(errorText(res, "The arena board could not be loaded."));
+      setLoadError(errorText(res, 'The arena board could not be loaded.'));
       return;
     }
 
@@ -81,17 +75,17 @@ export default function HomePage() {
   useEffect(() => {
     void fetchBoardData();
 
-    const eventSource = new EventSource("/api/v1/live");
+    const eventSource = new EventSource('/api/v1/live');
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === "rank_change") {
+        if (data.type === 'rank_change') {
           void fetchBoardData();
           setPulsingPostId(data.post_id);
           setToastMessage(`"${data.post_title}" moved to #${data.new_rank}`);
           setTimeout(() => setPulsingPostId(null), 3000);
           setTimeout(() => setToastMessage(null), 5000);
-        } else if (data.type === "new_post") {
+        } else if (data.type === 'new_post') {
           void fetchBoardData();
         }
       } catch {
@@ -115,9 +109,7 @@ export default function HomePage() {
     setIsTopUpOpen(true);
   };
 
-  const handleBoostSuccess = (
-    result: { old_rank?: number; new_rank?: number } | unknown,
-  ) => {
+  const handleBoostSuccess = (result: { old_rank?: number; new_rank?: number } | unknown) => {
     void fetchBoardData();
     void refreshWallet();
     const ranked = result as { old_rank?: number; new_rank?: number };
@@ -125,10 +117,10 @@ export default function HomePage() {
       setToastMessage(
         ranked.old_rank && ranked.old_rank !== ranked.new_rank
           ? `Backing settled — moved from #${ranked.old_rank} to #${ranked.new_rank}.`
-          : `Backing settled — holding #${ranked.new_rank}.`,
+          : `Backing settled — holding #${ranked.new_rank}.`
       );
     } else {
-      setToastMessage("Backing settled.");
+      setToastMessage('Backing settled.');
     }
     setTimeout(() => setToastMessage(null), 6000);
   };
@@ -136,9 +128,7 @@ export default function HomePage() {
   const handlePostCreated = (post: unknown) => {
     void fetchBoardData();
     const created = post as { title?: string };
-    setToastMessage(
-      `"${created?.title ?? "Your stance"}" entered the public arena.`,
-    );
+    setToastMessage(`"${created?.title ?? 'Your stance'}" entered the public arena.`);
     setTimeout(() => setToastMessage(null), 5000);
   };
 
@@ -146,11 +136,7 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col relative overflow-x-hidden">
       {/* Toast Notification */}
       {toastMessage && (
-        <div
-          className="fixed top-20 right-4 sm:right-8 z-50 animate-rise"
-          role="status"
-          aria-live="polite"
-        >
+        <div className="fixed top-20 right-4 sm:right-8 z-50 animate-rise" role="status" aria-live="polite">
           <div className="panel rounded-control px-4 py-3 flex items-center gap-2.5 text-dense text-ink">
             <span className="led led-gold" aria-hidden />
             <span>{toastMessage}</span>
@@ -158,10 +144,7 @@ export default function HomePage() {
         </div>
       )}
 
-      <Navbar
-        onOpenCreate={() => setIsCreateOpen(true)}
-        onBalanceUpdated={() => void refreshWallet()}
-      />
+      <Navbar onOpenCreate={() => setIsCreateOpen(true)} onBalanceUpdated={() => void refreshWallet()} />
 
       <WarTicker fights={fights} />
 
@@ -175,24 +158,18 @@ export default function HomePage() {
         isLoading={isLoading}
         loadFailed={Boolean(loadError)}
         onOpenCreate={() => setIsCreateOpen(true)}
+        onOpenWar={() => setIsCreateWarOpen(true)}
       />
 
       <div className="flex-1 pb-16">
         {loadError ? (
           <div className="mx-auto max-w-md px-4">
             <div className="panel rounded-card p-8 text-center">
-              <AlertCircle
-                className="mx-auto mb-3 h-7 w-7 text-down"
-                aria-hidden
-              />
+              <AlertCircle className="mx-auto mb-3 h-7 w-7 text-down" aria-hidden />
               <p role="alert" className="text-dense text-ink-2">
                 {loadError}
               </p>
-              <button
-                type="button"
-                onClick={() => void fetchBoardData()}
-                className="btn btn-ghost btn-sm mt-5"
-              >
+              <button type="button" onClick={() => void fetchBoardData()} className="btn btn-ghost btn-sm mt-5">
                 <RefreshCw className="h-3.5 w-3.5" />
                 <span>Retry</span>
               </button>
@@ -249,6 +226,17 @@ export default function HomePage() {
         onPostCreated={handlePostCreated}
       />
 
+      <CreateWarPostModal
+        isOpen={isCreateWarOpen}
+        onClose={() => setIsCreateWarOpen(false)}
+        onWarCreated={() => {
+          void fetchBoardData();
+          void refreshWallet();
+          setToastMessage('War declared — both sides are on the board and fighting for rank.');
+          setTimeout(() => setToastMessage(null), 6000);
+        }}
+      />
+
       <WalletTopUpModal
         isOpen={isTopUpOpen}
         onClose={() => {
@@ -259,9 +247,7 @@ export default function HomePage() {
         onTopUpSuccess={() => {
           void refreshWallet();
           setIsTopUpOpen(false);
-          setToastMessage(
-            "Wallet topped up — back a stance whenever you are ready.",
-          );
+          setToastMessage('Wallet topped up — back a stance whenever you are ready.');
           setTimeout(() => setToastMessage(null), 6000);
         }}
         recommendedCents={topUpRecommendation}

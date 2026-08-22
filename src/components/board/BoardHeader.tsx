@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { formatUSD } from "@/lib/utils";
+import { Swords } from "lucide-react";
+import { formatCents, formatUSD } from "@/lib/utils";
 import { Category, RankedPostView } from "@/lib/types";
 import { LiveVisitorsBadge } from "../live/LiveVisitorsBadge";
 
@@ -18,6 +19,7 @@ interface BoardHeaderProps {
   /** True when the board could not be loaded at all. */
   loadFailed?: boolean;
   onOpenCreate?: () => void;
+  onOpenWar?: () => void;
 }
 
 export const BoardHeader: React.FC<BoardHeaderProps> = ({
@@ -29,6 +31,7 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
   isLoading = false,
   loadFailed = false,
   onOpenCreate,
+  onOpenWar,
 }) => {
   const incrementStrategy =
     category?.increment_strategy === "percent"
@@ -107,6 +110,16 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
               >
                 Post a stance — 1¢
               </button>
+              {onOpenWar && (
+                <button
+                  type="button"
+                  onClick={onOpenWar}
+                  className="btn btn-ghost"
+                >
+                  <Swords className="h-4 w-4" aria-hidden />
+                  <span>Post a war</span>
+                </button>
+              )}
               <a href="#board-table" className="btn btn-ghost">
                 See the full board
               </a>
@@ -189,7 +202,7 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
                             {post.title}
                           </span>
                           <span className="mt-1 block text-meta text-ink-3 tnum">
-                            {formatUSD(post.total_raised_cents)} backed ·{" "}
+                            {formatCents(post.total_raised_cents)} backed ·{" "}
                             {post.backers_count.toLocaleString()}{" "}
                             {post.backers_count === 1 ? "backer" : "backers"}
                           </span>
