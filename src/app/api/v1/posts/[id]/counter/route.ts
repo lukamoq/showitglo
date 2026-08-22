@@ -123,6 +123,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       total_raised_cents: 0,
       backers_count: 0,
       like_units: 0,
+      tap_units: 0,
       streak_days: 0,
     });
 

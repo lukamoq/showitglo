@@ -142,9 +142,12 @@ export default function TermsPage() {
           <Heading id="the-service">2. The service, and what credits are</Heading>
           <p>
             ShowItGlo is a public arena for opinions and consumer demands. Anyone can publish one,
-            and anyone can pay small amounts to raise how high it ranks. Ranking is arithmetic, not
-            editorial: a score built from what has been paid into a post, decaying over time on a
-            fixed half-life. We do not curate the boards and we do not sell placement.
+            and anyone can raise how high it ranks — either by tapping, which is free and capped per
+            post per day, or by paying small amounts. Ranking is arithmetic, not editorial: a score
+            built from what has been put into a post, whether tapped or paid, decaying over time on
+            a fixed half-life. Free taps move the score only; they are not money, they are never
+            added to the amount a post has raised, and they give no claim to a refund. We do not
+            curate the boards and we do not sell placement.
           </p>
           <p className="mt-3">
             To pay for an interaction you first load <strong>credits</strong> into a prepaid wallet.

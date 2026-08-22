@@ -121,6 +121,17 @@ export const BoardRow: React.FC<BoardRowProps> = ({
             <span className="tnum">{post.backers_count.toLocaleString()} backer{post.backers_count === 1 ? '' : 's'}</span>
             <span aria-hidden className="text-ink-3/40">·</span>
             <span className="tnum">{formatCents(post.total_raised_cents)} raised</span>
+            {/* Taps rank a post without paying for it, so a row can sit high on
+                very little money. Naming them keeps that gap explicable —
+                unexplained rank is what makes a board look rigged. */}
+            {post.tap_units > 0 && (
+              <>
+                <span aria-hidden className="text-ink-3/40">·</span>
+                <span className="tnum">
+                  {post.tap_units.toLocaleString()} free tap{post.tap_units === 1 ? '' : 's'}
+                </span>
+              </>
+            )}
             {post.source_url && (
               <>
                 <span aria-hidden className="text-ink-3/40">·</span>

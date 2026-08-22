@@ -90,16 +90,16 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
                 metaphor is exactly what a reader discounts when they are
                 deciding whether a site that asks for money is real. */}
             <h1 className="display-statement text-ink mt-5 max-w-[19ch]">
-              Opinions, ranked by what people pay to back them.
+              Opinions, ranked by what people back them with.
             </h1>
 
             <p className="lead mt-5">
-              Anyone can post a stance. A like costs{" "}
-              <span className="tnum">1¢</span>, a boost{" "}
-              <span className="tnum">10¢</span>, and the total spent sets the
-              order of the board. Nothing is paid out to the people posting: the
-              money buys rank, and whatever you have not spent is refundable at
-              face value.
+              Anyone can post a stance, and anyone can push one up — by tapping,
+              which is free, or with money, where a like costs{" "}
+              <span className="tnum">1¢</span> and a boost{" "}
+              <span className="tnum">10¢</span>. Nothing is paid out to the
+              people posting: backing buys rank, and whatever you have not spent
+              is refundable at face value.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -280,12 +280,12 @@ export const BoardMission: React.FC = () => {
     {
       step: "1",
       title: "Post a stance, or back one",
-      body: "Anyone can post. Backing an existing stance costs 1¢ for a like or 10¢ for a boost, taken from prepaid credit.",
+      body: "Anyone can post. Backing costs nothing if you tap — ten taps earn the rank of a penny, capped per post per day — or 1¢ a like and 10¢ a boost from prepaid credit.",
     },
     {
       step: "2",
-      title: "The board ranks by money paid",
-      body: "No editor and no algorithm picks the order, and placement is not for sale separately. Scores decay on a fixed seven-day half-life, so nothing holds the top on old spending.",
+      title: "The board ranks by what it is given",
+      body: "Ten free taps lift a post as much as a paid penny does, so anyone can move the board without spending. No editor and no algorithm picks the order, and placement is not for sale separately. Scores decay on a fixed seven-day half-life, so nothing holds the top on old backing.",
     },
     {
       step: "3",

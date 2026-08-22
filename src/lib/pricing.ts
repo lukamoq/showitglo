@@ -13,6 +13,19 @@ export const LIKE_UNIT_CENTS = 1;
 export const LIKE_MIN_UNITS = 1;
 export const LIKE_MAX_UNITS = 100;
 
+/**
+ * Unpaid taps needed to earn the rank of one penny.
+ *
+ * A tap moves score exactly as 1¢ does, once TAPS_PER_PENNY of them land —
+ * but no wallet is debited and no money is added to the post. The constant
+ * lives here because the server grants the rank and must not take the
+ * client's word for how many taps it took.
+ */
+export const TAPS_PER_PENNY = 10;
+
+/** Rank-cents a wallet may earn per post per day without paying. */
+export const TAP_RANK_CENTS_PER_POST_PER_DAY = 10;
+
 export const BOOST_CENTS = 10;
 export const SUPER_CENTS = 100;
 
@@ -45,8 +58,10 @@ export function isValidTopupAmount(value: unknown): value is number {
 /**
  * Server-side price for a fixed-price interaction. `power` is excluded on
  * purpose: its amount comes from a signed, persisted quote, not from a table.
+ * `tap` is excluded because it has no price at all — it buys rank with
+ * repetition, and asking this function for its cost is a caller bug.
  */
-export function priceForKind(kind: Exclude<InteractionKind, 'power'>, units = 1): number {
+export function priceForKind(kind: Exclude<InteractionKind, 'power' | 'tap'>, units = 1): number {
   switch (kind) {
     case 'like': {
       const clamped = Math.min(LIKE_MAX_UNITS, Math.max(LIKE_MIN_UNITS, Math.floor(units)));

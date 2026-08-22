@@ -7,13 +7,13 @@ import { TAPS_PER_PENNY, setTapPriceMode, useTapPriceMode, type TapPriceMode } f
 const OPTIONS: Array<{ mode: TapPriceMode; label: string; title: string }> = [
   {
     mode: 'penny',
-    label: '1 tap = 1¢',
-    title: 'Every tap spends a penny.',
+    label: 'Pay 1¢',
+    title: 'Every tap spends a penny from your wallet, and counts as money backing the post.',
   },
   {
     mode: 'tenth',
-    label: `${TAPS_PER_PENNY} taps = 1¢`,
-    title: `A tap costs a tenth as much: ${TAPS_PER_PENNY} of them spend one penny, and nothing is charged until the ${TAPS_PER_PENNY}th.`,
+    label: `Tap ${TAPS_PER_PENNY}× free`,
+    title: `${TAPS_PER_PENNY} taps move a post exactly as one paid penny would, but cost nothing. Capped per post per day.`,
   },
 ];
 
@@ -29,7 +29,7 @@ export const TapPriceToggle: React.FC<{ className?: string }> = ({ className = '
 
   return (
     <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 ${className}`}>
-      <div className="seg" role="group" aria-label="What one tap on a like button spends">
+      <div className="seg" role="group" aria-label="How a tap backs a stance">
         {OPTIONS.map((option) => (
           <button
             key={option.mode}
@@ -49,8 +49,8 @@ export const TapPriceToggle: React.FC<{ className?: string }> = ({ className = '
           "1 tap = 1¢" says nothing the reader cannot see. */}
       <p className="text-meta text-ink-3">
         {mode === 'tenth'
-          ? `A tap costs a tenth of a penny of progress — the ${TAPS_PER_PENNY}th spends 1¢, and nothing is charged before it.`
-          : 'Every tap spends 1¢ straight away.'}
+          ? `${TAPS_PER_PENNY} taps lift a post as much as a paid penny does — free, capped daily, and not counted as money raised.`
+          : 'Every tap spends 1¢ from your wallet and counts towards the money behind the post.'}
       </p>
     </div>
   );

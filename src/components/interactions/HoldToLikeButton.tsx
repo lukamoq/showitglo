@@ -16,6 +16,12 @@ interface HoldToLikeButtonProps {
   onLikeCapReached?: () => void;
 }
 
+interface TapResponse {
+  rank_cents: number;
+  tap_units: number;
+  remaining_rank_cents: number;
+}
+
 interface LikeResponse {
   units: number;
   amount_cents: number;
@@ -171,11 +177,44 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
   }, []);
 
   /**
-   * Bank `taps` towards the next penny and charge for each whole penny reached.
+   * Send one completed run of taps for rank.
    *
-   * The charge itself is an ordinary like of N units — the server is not told
-   * about tenths and has no concept of them. Ten taps simply decide *when* one
-   * of its 1¢ likes is sent.
+   * Nothing is charged: the server grants the rank a penny would have bought
+   * and leaves the wallet and the post's money total alone. The grant is
+   * capped per post per day, so this can come back refused while everything
+   * else about the page is fine — which is a notice, not an error.
+   */
+  const sendTapGrant = useCallback(async (): Promise<boolean> => {
+    if (inFlightRef.current) return false;
+    inFlightRef.current = true;
+    setIsSending(true);
+    setErrorMsg(null);
+    setNoticeMsg(null);
+
+    const res = await apiPost<TapResponse>(`/api/v1/posts/${postId}/tap`, { rank_cents: 1 });
+
+    inFlightRef.current = false;
+    setIsSending(false);
+
+    if (res.ok) {
+      if (onLikeExecuted) onLikeExecuted(0, likesCount);
+      if (res.data && res.data.remaining_rank_cents <= 0) {
+        setNoticeMsg('That is all the free rank this post can give you today.');
+      }
+      return true;
+    }
+
+    if (hasCode(res, 'TAP_CAP_REACHED')) {
+      setNoticeMsg('Free rank for this post is used up for today — backing it with money still counts.');
+      return false;
+    }
+
+    setErrorMsg(errorText(res, 'Could not count those taps.'));
+    return false;
+  }, [postId, onLikeExecuted, likesCount]);
+
+  /**
+   * Bank `taps` towards the next penny and claim the rank for each one reached.
    */
   const commitTaps = useCallback(
     async (taps: number) => {
@@ -193,19 +232,17 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
       // Cleared before the request, so a second tap during the round trip
       // starts the next penny instead of re-sending this one.
       setProgress(remainder);
-      triggerBubble(`+${pennies}¢`);
+      triggerBubble(`+${pennies}¢ rank`);
 
-      const ok = await sendLikesBatch(Math.min(pennies, 100));
+      // One grant per completed run; the server caps the rest.
+      const ok = await sendTapGrant();
       if (ok) return;
 
-      /* Nothing was charged, so nothing is owed — but handing back every
-         banked tap would make the retry cost several pennies at once, which
-         is not what someone tapping a tenth at a time is asking for. The
-         count is restored to one tap short of a penny: the next single tap
-         retries exactly 1¢. */
+      /* The grant did not land, so the taps that earned it are handed back —
+         one short of a full run, so a single further tap retries it. */
       setProgress(Math.min(total, TAPS_PER_PENNY - 1));
     },
-    [sendLikesBatch, setProgress]
+    [sendTapGrant, setProgress]
   );
 
   const stopHold = useCallback(() => {
@@ -226,11 +263,12 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
       const total = holdStartProgressRef.current + ticks;
       const pennies = Math.floor(total / TAPS_PER_PENNY);
       setProgress(total % TAPS_PER_PENNY);
-      if (pennies > 0) void sendLikesBatch(Math.min(pennies, 100));
+      // Each completed run is its own grant, and each is capped server-side.
+      for (let i = 0; i < pennies; i++) void sendTapGrant();
       return;
     }
     void sendLikesBatch(ticks);
-  }, [sendLikesBatch, commitTaps, isTenthMode]);
+  }, [sendLikesBatch, sendTapGrant, commitTaps, isTenthMode]);
 
   const startHold = useCallback(() => {
     if (inFlightRef.current || holdIntervalRef.current) return;
@@ -247,7 +285,7 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
         // the tenths are visible on the button itself.
         const banked = holdStartProgressRef.current + ticks;
         if (banked > 0 && banked % TAPS_PER_PENNY === 0) {
-          triggerBubble(`+${Math.floor(banked / TAPS_PER_PENNY)}¢`);
+          triggerBubble(`+${Math.floor(banked / TAPS_PER_PENNY)}¢ rank`);
         }
         setProgress(banked % TAPS_PER_PENNY);
         // Same 100-unit ceiling as penny mode, counted in taps.
@@ -302,7 +340,7 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
         disabled={isSending}
         aria-label={
           isTenthMode
-            ? `Back this stance. ${TAPS_PER_PENNY} taps spend 1 cent; ${tapProgress} of ${TAPS_PER_PENNY} tapped so far, nothing is charged until the ${TAPS_PER_PENNY}th. ${likesCount} likes on this stance.`
+            ? `Back this stance by tapping. ${TAPS_PER_PENNY} taps earn the rank of 1 cent and cost nothing; ${tapProgress} of ${TAPS_PER_PENNY} tapped so far. ${likesCount} paid likes on this stance.`
             : `Back this stance with a 1 cent like. ${likesCount} likes so far.`
         }
         aria-describedby={errorMsg ? `like-error-${postId}` : undefined}
@@ -311,7 +349,7 @@ export const HoldToLikeButton: React.FC<HoldToLikeButtonProps> = ({
         }`}
         title={
           isTenthMode
-            ? `${TAPS_PER_PENNY} taps give $0.01 — ${tapProgress} of ${TAPS_PER_PENNY} so far. Nothing is charged until the ${TAPS_PER_PENNY}th tap.`
+            ? `${TAPS_PER_PENNY} taps earn the rank of $0.01 — free, ${tapProgress} of ${TAPS_PER_PENNY} so far. Your wallet is not touched.`
             : 'Tap to give $0.01, hold to rapid-fire'
         }
       >

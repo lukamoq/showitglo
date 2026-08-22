@@ -51,6 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             total_raised_cents: 0,
             backers_count: 0,
             like_units: 0,
+            tap_units: 0,
           },
           boosts: [],
           top_backers: [],

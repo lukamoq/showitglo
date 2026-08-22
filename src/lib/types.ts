@@ -94,6 +94,7 @@ export interface Post {
   total_raised_cents: number;
   backers_count: number; // Distinct funders count
   like_units: number; // Total $0.01 likes
+  tap_units: number; // Unpaid taps banked into rank (TAPS_PER_PENNY per penny)
   streak_days: number;
   created_at: string;
   /**
@@ -106,7 +107,12 @@ export interface Post {
   removed_reason?: string | null;
 }
 
-export type InteractionKind = 'like' | 'boost' | 'super' | 'power';
+/**
+ * 'tap' is the one kind that costs nothing. It earns rank through repetition
+ * rather than money, so a tap interaction always carries amount_cents = 0 and
+ * never appears in a wallet ledger or in a post's total_raised_cents.
+ */
+export type InteractionKind = 'like' | 'boost' | 'super' | 'power' | 'tap';
 
 export interface Interaction {
   id: string;

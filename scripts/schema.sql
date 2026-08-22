@@ -229,6 +229,16 @@ CREATE TABLE IF NOT EXISTS interactions (
 -- Client-supplied idempotency key for at-most-once spend semantics.
 ALTER TABLE interactions ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
 
+-- 'tap' is the unpaid kind: it earns rank through repetition instead of money,
+-- so its rows carry amount_cents = 0 and never touch a wallet or the post's
+-- total_raised_cents. Re-added rather than edited in place so re-running this
+-- file over a deployed database widens the existing constraint.
+ALTER TABLE interactions DROP CONSTRAINT IF EXISTS interactions_kind_check;
+ALTER TABLE interactions ADD CONSTRAINT interactions_kind_check
+  CHECK (kind IN ('like', 'boost', 'super', 'power', 'tap'));
+
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS tap_units BIGINT NOT NULL DEFAULT 0;
+
 CREATE INDEX IF NOT EXISTS idx_interactions_post ON interactions(post_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_interactions_user ON interactions(user_id, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_interactions_idem ON interactions(idempotency_key) WHERE idempotency_key IS NOT NULL;

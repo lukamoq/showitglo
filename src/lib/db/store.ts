@@ -50,6 +50,7 @@ import {
   dollarsNeededForScore,
 } from '../engine/decay';
 import { getRequiredScoreToDisplace } from '../engine/strategies';
+import { TAPS_PER_PENNY } from '../pricing';
 import { eventBus } from '../engine/eventBus';
 import { getInsightsKMin } from '../env';
 import {
@@ -229,6 +230,7 @@ function mapPost(row: QueryResultRow): Post {
     total_raised_cents: num(row.total_raised_cents),
     backers_count: num(row.backers_count),
     like_units: num(row.like_units),
+    tap_units: num(row.tap_units),
     streak_days: num(row.streak_days),
     created_at: iso(row.created_at),
     first_light_until: isoOrNull(row.first_light_until),
@@ -2101,6 +2103,193 @@ export async function recordInteraction(params: RecordInteractionParams): Promis
     }
     throw err;
   }
+}
+
+export interface RecordTapsResult {
+  /** Rank-cents granted by this call (never money). */
+  rank_cents: number;
+  tap_units: number;
+  oldRank: number;
+  newRank: number;
+  displacedPosts: RankedPostView[];
+  /** Rank-cents this wallet has left on this post in the trailing 24h. */
+  remaining_rank_cents: number;
+}
+
+/**
+ * Grant rank for unpaid taps.
+ *
+ * This is the paid path with the money taken out. A tap moves `score_base` by
+ * exactly what the same number of cents would move it, so ten taps rank like a
+ * penny — but no wallet is locked or debited, no ledger row is written, the
+ * post's `total_raised_cents` does not move, and the tapper is not added to
+ * `post_backers`. Those four omissions are the feature: the board's money
+ * figures must keep meaning money that was actually paid, or the numbers on
+ * the landing page stop being true.
+ *
+ * The caller passes how many rank-cents it believes it earned; this function
+ * does not trust that number beyond its own cap. Taps are free, so the cap —
+ * not the client's arithmetic — is the only thing standing between the board
+ * and someone scripting rank for nothing.
+ */
+export async function recordTaps(params: {
+  postId: string;
+  userId: string;
+  rankCents: number;
+  capRankCents24h: number;
+}): Promise<RecordTapsResult> {
+  if (!isUuid(params.userId)) throw new StoreError('USER_NOT_FOUND', 'Unknown user.', 404);
+  if (!Number.isSafeInteger(params.rankCents) || params.rankCents <= 0) {
+    throw new StoreError('INVALID_UNITS', 'Tap grant must be a positive whole number.', 400);
+  }
+
+  const target = await getPost(params.postId);
+  if (!target) throw new StoreError('POST_NOT_FOUND', 'Post not found.', 404);
+
+  const result = await withTransaction(async (client) => {
+    // Post lock only — there is no wallet in this path to serialize against.
+    const postRes = await client.query('SELECT * FROM posts WHERE id = $1 FOR UPDATE', [target.id]);
+    if (!postRes.rows[0]) throw new StoreError('POST_NOT_FOUND', 'Post not found.', 404);
+    const post = mapPost(postRes.rows[0]);
+    if (post.status !== 'live' && post.status !== 'pending_review') {
+      throw new StoreError('POST_NOT_LIVE', 'This post is not accepting backing.', 409);
+    }
+
+    /* The cap, inside the transaction and after the lock, so two concurrent
+       requests cannot both read the same "remaining" and both spend it. */
+    const usedRes = await client.query(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS used_money,
+              COALESCE(SUM(stored_delta), 0) AS used_delta,
+              COALESCE(SUM(units), 0) AS used_units
+         FROM interactions
+        WHERE user_id = $1 AND post_id = $2 AND kind = 'tap'
+          AND created_at > NOW() - INTERVAL '24 hours'`,
+      [params.userId, post.id]
+    );
+    // Tap rows carry amount_cents = 0, so the rank they granted is counted in
+    // `units` — one unit per rank-cent.
+    const usedRankCents = num(usedRes.rows[0]?.used_units);
+    const remaining = Math.max(0, params.capRankCents24h - usedRankCents);
+    if (remaining <= 0) {
+      throw new StoreError(
+        'TAP_CAP_REACHED',
+        'You have earned all the rank this post can give you for free today. Backing it with money still counts.',
+        429,
+        { used_rank_cents_24h: usedRankCents, cap_rank_cents_24h: params.capRankCents24h }
+      );
+    }
+
+    // Granted, not requested: whatever is left of the cap bounds the grant.
+    const rankCents = Math.min(params.rankCents, remaining);
+
+    const catRes = await client.query('SELECT * FROM categories WHERE id = $1', [post.category_id || 'global']);
+    if (!catRes.rows[0]) throw new StoreError('CATEGORY_NOT_FOUND', 'Category not found.', 404);
+    const cat = mapCategory(catRes.rows[0]);
+    const filter = categoryFilter(cat.id);
+
+    const now = new Date();
+    const storedDelta = calculateStoredDelta(rankCents, now, cat.score_epoch, cat.half_life_hours);
+    const oldScore = post.score_base;
+    const newScore = oldScore + storedDelta;
+
+    const oldRank = await rankForScore(client, filter, post.id, oldScore);
+    const newRank = await rankForScore(client, filter, post.id, newScore);
+
+    const interactionId = shortId('int');
+    await client.query(
+      `INSERT INTO interactions (id, post_id, user_id, category_id, kind, units, amount_cents, stored_delta,
+                                 visibility, achieved_rank, payer_display, created_at)
+       VALUES ($1,$2,$3,$4,'tap',$5,0,$6,'alias',$7,$8,$9)`,
+      [
+        interactionId,
+        post.id,
+        params.userId,
+        cat.id,
+        rankCents,
+        storedDelta,
+        newRank,
+        'Tapped',
+        now.toISOString(),
+      ]
+    );
+
+    /* score and tap_units only. total_raised_cents, like_units and
+       backers_count are money's business and are left exactly as they were. */
+    const postAfterRes = await client.query(
+      `UPDATE posts
+          SET score_base = score_base + $2,
+              tap_units = tap_units + $3,
+              status = CASE WHEN status = 'pending_review' THEN 'live' ELSE status END
+        WHERE id = $1
+        RETURNING *`,
+      [post.id, storedDelta, rankCents * TAPS_PER_PENNY]
+    );
+    const postAfter = mapPost(postAfterRes.rows[0]);
+
+    await client.query(
+      `INSERT INTO rank_events (category_id, post_id, old_rank, new_rank, cause_interaction_id, occurred_at)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [cat.id, post.id, oldRank, newRank, interactionId, now.toISOString()]
+    );
+
+    const displacedPosts = await notifyDisplaced(client, {
+      cat,
+      filter,
+      moverId: post.id,
+      moverTitle: postAfter.title,
+      moverUserId: params.userId,
+      oldScore,
+      newScore,
+      newRank,
+      now,
+    });
+
+    return {
+      rank_cents: rankCents,
+      tap_units: postAfter.tap_units,
+      oldRank,
+      newRank,
+      displacedPosts,
+      remaining_rank_cents: Math.max(0, params.capRankCents24h - usedRankCents - rankCents),
+      _event: {
+        categoryId: cat.id,
+        postId: post.id,
+        postTitle: postAfter.title,
+        displayScore: round2(
+          calculateDecayedScore(postAfter.score_base, now, cat.score_epoch, cat.half_life_hours)
+        ),
+        backersCount: postAfter.backers_count,
+        timestamp: now.toISOString(),
+      },
+    };
+  });
+
+  const { _event, ...publicResult } = result;
+
+  eventBus.publish(`board:${_event.categoryId}`, {
+    type: 'rank_change',
+    post_id: _event.postId,
+    post_title: _event.postTitle,
+    old_rank: publicResult.oldRank,
+    new_rank: publicResult.newRank,
+    kind: 'tap',
+    amount_cents: 0,
+    display_score: _event.displayScore,
+    backers_count: _event.backersCount,
+    displaced_count: publicResult.displacedPosts.length,
+    timestamp: _event.timestamp,
+  });
+
+  log('info', 'taps.recorded', {
+    user_id: params.userId,
+    post_id: _event.postId,
+    rank_cents: publicResult.rank_cents,
+    old_rank: publicResult.oldRank,
+    new_rank: publicResult.newRank,
+    outcome: 'ok',
+  });
+
+  return publicResult;
 }
 
 /** `1 + (live posts in this board scoring strictly higher)`, self excluded. */
