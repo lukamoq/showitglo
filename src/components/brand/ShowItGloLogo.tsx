@@ -13,7 +13,7 @@ export const ShowItGloLogo: React.FC<ShowItGloLogoProps> = ({
   className = '',
   size = 36,
   withText = false,
-  textColor = 'text-white',
+  textColor = 'text-ink',
 }) => {
   return (
     <div className={`inline-flex items-center gap-2.5 ${className}`}>
@@ -23,17 +23,17 @@ export const ShowItGloLogo: React.FC<ShowItGloLogoProps> = ({
         alt="ShowItGlo Logo"
         width={size}
         height={size}
-        className="rounded-xl object-cover shrink-0 shadow-md shadow-amber-500/20 border border-white/10"
+        className="rounded-lg object-cover shrink-0 border border-line"
         style={{ width: `${size}px`, height: `${size}px` }}
       />
 
       {/* Wordmark */}
       {withText && (
         <div className="flex flex-col">
-          <span className={`font-black tracking-tight text-lg sm:text-xl leading-none ${textColor}`}>
-            ShowIt<span className="text-amber-400">Glo</span>
+          <span className={`font-bold tracking-tight text-lg leading-none ${textColor}`}>
+            ShowIt<span className="text-gold-text">Glo</span>
           </span>
-          <span className="text-[9px] text-amber-400/90 font-mono tracking-wider uppercase mt-0.5">
+          <span className="micro-label text-ink-3 mt-0.5">
             Let the world decide
           </span>
         </div>

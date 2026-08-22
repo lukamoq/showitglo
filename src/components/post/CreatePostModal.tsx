@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Sparkles, AlertCircle, ShieldCheck, Zap, Megaphone, Mic, Link as LinkIcon, Building2, Flame } from 'lucide-react';
+import { X, Sparkles, AlertCircle, Zap, Mic, Link as LinkIcon, Building2, Flame } from 'lucide-react';
 import { runGate0Moderation } from '@/lib/moderation/gate0';
 import { formatUSD } from '@/lib/utils';
 import confetti from 'canvas-confetti';
@@ -30,6 +30,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   if (!isOpen) return null;
 
   const quickTargets = ['Tesla', 'Apple', "McDonald's", 'OpenAI', 'Google', 'Airlines', 'Central Banks', 'SEC / Regulators'];
+
+  const modes = [
+    { key: 'opinion' as const, label: 'Say It Out Loud', sub: 'Uncensored opinion', Icon: Mic },
+    { key: 'demand' as const, label: 'Call Out Entity', sub: 'Company / institution', Icon: Building2 },
+    { key: 'linked' as const, label: 'Link a Post', sub: 'X, YouTube, Reddit', Icon: LinkIcon },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +86,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
           particleCount: 80,
           spread: 70,
           origin: { y: 0.6 },
-          colors: ['#fbbf24', '#f59e0b', '#06b6d4'],
+          colors: ['#F0A824', '#FFC53D', '#FFFFFF'],
         });
         onPostCreated(data.post);
         onClose();
@@ -99,70 +105,50 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(4,6,12,0.65)] backdrop-blur-md">
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-xl glass-panel rounded-3xl border border-white/20 p-6 sm:p-8 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-4 border-b border-white/10">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-mono text-amber-400 font-semibold uppercase">
+      <div className="relative z-10 w-full max-w-xl panel rounded-modal p-6 sm:p-8 overflow-hidden max-h-[90vh] overflow-y-auto animate-rise">
+        <div className="flex items-start justify-between gap-3 pb-4 border-b border-line">
+          <div className="min-w-0">
+            <div className="kicker-gold kicker flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Unfiltered Public Record</span>
+              <span>Unfiltered public record</span>
             </div>
-            <h3 className="text-xl font-bold text-white mt-0.5">
-              Take The Public Stage
+            <h3 className="text-lg font-bold tracking-tight text-ink mt-1">
+              Take the public stage
             </h3>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full glass-card hover:bg-white/20 text-slate-400 hover:text-white cursor-pointer"
+            className="btn btn-ghost btn-xs !px-1.5 shrink-0"
+            aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* 3-Mode Post Kind Selector: Say It Out Loud vs Call Out Company/Institution vs Link a Post */}
-        <div className="mt-4 grid grid-cols-3 gap-1.5 p-1 rounded-2xl glass-segmented border border-white/10 text-xs font-semibold">
-          <button
-            type="button"
-            onClick={() => setPostMode('opinion')}
-            className={`py-2.5 px-2 rounded-xl transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
-              postMode === 'opinion' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Mic className="w-4 h-4 text-amber-400 mb-0.5" />
-            <span className="font-bold text-[11px] leading-tight">Say It Out Loud</span>
-            <span className="text-[9px] text-slate-400 font-normal">Uncensored Opinion</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setPostMode('demand')}
-            className={`py-2.5 px-2 rounded-xl transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
-              postMode === 'demand' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Building2 className="w-4 h-4 text-cyan-400 mb-0.5" />
-            <span className="font-bold text-[11px] leading-tight">Call Out Entity</span>
-            <span className="text-[9px] text-cyan-300/80 font-normal">Company / Institution</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setPostMode('linked')}
-            className={`py-2.5 px-2 rounded-xl transition-all flex flex-col items-center justify-center text-center cursor-pointer ${
-              postMode === 'linked' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <LinkIcon className="w-4 h-4 text-purple-400 mb-0.5" />
-            <span className="font-bold text-[11px] leading-tight">Link a Post</span>
-            <span className="text-[9px] text-slate-400 font-normal">X, YouTube, Reddit</span>
-          </button>
+        <div className="mt-4 seg w-full">
+          {modes.map(({ key, label, sub, Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setPostMode(key)}
+              className={`seg-item flex-1 flex-col text-center !py-2.5 ${
+                postMode === key ? 'seg-item-active' : ''
+              }`}
+            >
+              <Icon className="w-4 h-4 mb-0.5" />
+              <span className="leading-tight">{label}</span>
+              <span className="text-micro opacity-70 font-normal">{sub}</span>
+            </button>
+          ))}
         </div>
 
         {errorMsg && (
-          <div className="mt-4 p-3 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
+          <div className="mt-4 rounded-control bg-down/10 border border-down/30 text-down text-dense p-3 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
@@ -172,10 +158,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
           {/* Linked URL input if in Linked Mode */}
           {postMode === 'linked' && (
             <div>
-              <label className="text-xs font-semibold text-purple-300 block mb-1.5 flex items-center justify-between">
-                <span>External Post URL (X, YouTube, Reddit, News, etc.) *</span>
-                <span className="text-[10px] text-slate-400 font-mono">Won&apos;t get censored here</span>
-              </label>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <label className="kicker">External post URL *</label>
+                <span className="text-micro text-ink-3">Won&apos;t get censored here</span>
+              </div>
               <div className="relative">
                 <input
                   type="url"
@@ -183,9 +169,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   value={sourceUrl}
                   onChange={(e) => setSourceUrl(e.target.value)}
                   placeholder="https://x.com/username/status/... or https://youtube.com/..."
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl glass-card border border-purple-500/40 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-purple-400"
+                  className="field pl-9 text-dense"
                 />
-                <LinkIcon className="w-4 h-4 text-purple-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <LinkIcon className="w-4 h-4 text-ink-3 absolute left-3 top-1/2 -translate-y-1/2" />
               </div>
             </div>
           )}
@@ -193,8 +179,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
           {/* Target Company / Institution input if in Demand Mode */}
           {postMode === 'demand' && (
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-cyan-300 block">
-                Target Company, Institution, or Regulatory Body *
+              <label className="kicker block mb-1.5">
+                Target company, institution, or regulatory body *
               </label>
               <input
                 type="text"
@@ -202,39 +188,39 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 value={demandTarget}
                 onChange={(e) => setDemandTarget(e.target.value)}
                 placeholder="e.g. Tesla, Apple, McDonald's, OpenAI, Central Banks, FIFA..."
-                className="w-full px-4 py-2.5 rounded-xl glass-card border border-cyan-500/40 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                className="field"
               />
 
               {/* Quick suggestion chips */}
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] text-slate-400 font-mono">Popular:</span>
+                <span className="micro-label text-ink-3">Popular</span>
                 {quickTargets.map((target) => (
                   <button
                     type="button"
                     key={target}
                     onClick={() => setDemandTarget(target)}
-                    className="px-2 py-0.5 rounded-lg glass-segmented text-[10px] text-slate-300 hover:text-cyan-300 cursor-pointer"
+                    className="chip text-steel hover:text-gold-text transition-colors cursor-pointer"
                   >
                     {target}
                   </button>
                 ))}
               </div>
 
-              <div className="p-2.5 rounded-xl bg-cyan-950/30 border border-cyan-500/20 text-[11px] text-cyan-200 leading-relaxed flex items-start gap-2">
-                <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="sunken rounded-control p-3 text-meta text-ink-2 leading-relaxed flex items-start gap-2">
+                <Flame className="w-3.5 h-3.5 shrink-0 mt-0.5 text-ink-3" />
                 <span>
-                  <strong>Escalation Guarantee:</strong> When the crowd backs this demand with money, it rises to the top of the global board and forces the company/institution to officially respond on the public record.
+                  <strong className="text-ink font-semibold">Escalation guarantee:</strong> When the crowd backs this demand with money, it rises to the top of the global board and forces the company/institution to officially respond on the public record.
                 </span>
               </div>
             </div>
           )}
 
           <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+            <label className="kicker block mb-1.5">
               {postMode === 'demand'
                 ? 'What change or accountability are you demanding? *'
                 : postMode === 'linked'
-                ? 'Your Uncensored Opinion on this Post *'
+                ? 'Your uncensored opinion on this post *'
                 : 'What do you want to say out loud? *'}
             </label>
             <input
@@ -250,26 +236,26 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   ? 'e.g. This policy will completely distort the housing market...'
                   : 'e.g. Modern institutions are ignoring the real root cause of inflation...'
               }
-              className="w-full px-4 py-2.5 rounded-xl glass-card border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/50"
+              className="field"
             />
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-              Supporting Arguments / Context
+            <label className="kicker block mb-1.5">
+              Supporting arguments / context
             </label>
             <textarea
               rows={3}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Why this matters and why your stance should rise to the top of the internet..."
-              className="w-full px-4 py-2.5 rounded-xl glass-card border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/50 resize-none"
+              className="field resize-none"
             />
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-              Initial Conviction Backing:
+            <label className="kicker block mb-1.5">
+              Initial conviction backing
             </label>
             <div className="grid grid-cols-4 gap-2">
               {[10, 50, 100, 500].map((cents) => (
@@ -277,10 +263,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   type="button"
                   key={cents}
                   onClick={() => setInitialBoostCents(cents)}
-                  className={`py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                  className={`py-2 rounded-control text-dense tnum font-semibold transition-colors cursor-pointer ${
                     initialBoostCents === cents
-                      ? 'bg-amber-500 text-black font-black shadow-md'
-                      : 'glass-card text-slate-300 hover:text-white'
+                      ? 'bg-gold/[0.16] text-gold-text shadow-[inset_0_0_0_1px_rgb(240_168_36/0.35)]'
+                      : 'sunken text-ink-3 hover:text-ink'
                   }`}
                 >
                   {cents < 100 ? `${cents}¢` : `$${cents / 100}`}
@@ -293,15 +279,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || !title.trim()}
-              className="w-full btn-glass-gold py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 cursor-pointer shadow-xl disabled:opacity-50"
+              className="btn btn-gold w-full"
             >
               {isSubmitting ? (
-                <span>Publishing to Permanent Public Record...</span>
+                <span>Publishing to permanent public record...</span>
               ) : (
                 <>
                   <Zap className="w-4 h-4" />
                   <span>
-                    Put On Stage ({formatUSD(initialBoostCents / 100)})
+                    Put on stage ({formatUSD(initialBoostCents / 100)})
                   </span>
                 </>
               )}

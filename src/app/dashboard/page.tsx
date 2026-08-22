@@ -14,10 +14,7 @@ import {
   CreditCard,
   Plus,
   AlertCircle,
-  Clock,
-  Sparkles,
   Trash2,
-  Users,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -96,29 +93,29 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#060709] text-white flex flex-col relative overflow-x-hidden">
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden">
       <Navbar onBalanceUpdated={() => fetchDashboard()} />
 
-      <div className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+      <div className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
         {/* Header & Wallet Banner */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-line">
           <div>
-            <div className="flex items-center gap-2 text-xs font-mono text-purple-400 font-semibold uppercase">
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Combatant & Creator Terminal</span>
+            <div className="kicker flex items-center gap-2">
+              <LayoutDashboard className="w-3.5 h-3.5" aria-hidden />
+              <span>Combatant &amp; Creator Terminal</span>
             </div>
-            <h1 className="text-2xl sm:text-4xl font-extrabold text-white mt-1">
+            <h1 className="text-3xl font-bold tracking-tight text-ink mt-2">
               {user?.alias || 'Marc (ShipFast)'}
             </h1>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Verified Fighter • {user?.email}
+            <p className="text-meta text-ink-3 mt-1">
+              Verified Fighter · {user?.email}
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setIsTopUpOpen(true)}
-              className="btn-glass-cyan px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-lg"
+              className="btn btn-gold btn-sm"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Refill Wallet</span>
@@ -126,7 +123,7 @@ export default function DashboardPage() {
 
             <button
               onClick={handleGdprErasure}
-              className="btn-glass-dark px-3 py-2 rounded-xl text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1.5 cursor-pointer"
+              className="btn btn-ghost btn-sm text-down hover:border-down/40"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">GDPR Erasure</span>
@@ -135,178 +132,228 @@ export default function DashboardPage() {
         </div>
 
         {erasureDone && (
-          <div className="mt-4 p-4 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs">
+          <div className="mt-4 rounded-card border border-up/30 bg-up/10 p-4 text-dense text-up animate-rise">
             ✓ Account data successfully anonymized and content tombstoned under GDPR Article 17.
           </div>
         )}
 
         {/* 1-Tap Outbid Reclaim Alerts */}
         {reclaimAlerts.length > 0 && (
-          <div className="mt-6 space-y-3">
-            <h3 className="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-              <AlertCircle className="w-4 h-4" />
+          <div className="mt-8">
+            <h2 className="kicker text-down flex items-center gap-1.5 mb-3">
+              <AlertCircle className="w-3.5 h-3.5" aria-hidden />
               <span>Outbid Alerts — Defend Your Rank</span>
-            </h3>
+            </h2>
 
-            {reclaimAlerts.map((alert) => (
-              <div
-                key={alert.id}
-                className="p-4 rounded-2xl bg-gradient-to-r from-rose-950/40 via-amber-950/20 to-slate-900 border border-rose-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg"
-              >
-                <div>
-                  <span className="font-bold text-sm text-white block">
-                    {alert.payload.post_title}
-                  </span>
-                  <span className="text-xs text-rose-300/90">
-                    {alert.payload.message}
-                  </span>
-                </div>
-
-                <button
-                  onClick={() => handle1TapReclaim(alert)}
-                  className="btn-glass-gold px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md"
+            <div className="panel rounded-card overflow-hidden divide-y divide-line">
+              {reclaimAlerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className="relative px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors duration-200 hover:bg-white/[0.04]"
                 >
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>
-                    1-Tap Reclaim #{alert.payload.old_rank} ({formatCents(alert.payload.reclaim_amount_cents || 1000)})
-                  </span>
-                </button>
-              </div>
-            ))}
+                  <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-down" />
+
+                  <div className="min-w-0">
+                    <span className="font-semibold text-[15px] text-ink block">
+                      {alert.payload.post_title}
+                    </span>
+                    <span className="text-meta text-ink-3">
+                      {alert.payload.message}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => handle1TapReclaim(alert)}
+                    className="btn btn-ghost btn-sm text-gold-text hover:border-gold/40 shrink-0 self-start sm:self-auto"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span className="tnum">
+                      1-Tap Reclaim #{alert.payload.old_rank} ({formatCents(alert.payload.reclaim_amount_cents || 1000)})
+                    </span>
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
         {/* 4-Stat Terminal Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-          <div className="glass-card p-4 rounded-2xl border border-emerald-500/30">
-            <div className="text-[10px] text-slate-400 uppercase font-mono">Wallet Available</div>
-            <div className="text-2xl font-black font-mono text-emerald-400 mt-1 tabular-nums">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+          <div className="card rounded-card p-4">
+            <div className="micro-label text-ink-3">Wallet Available</div>
+            <div className="metric text-2xl text-gold-text tnum mt-1.5 leading-none">
               {formatCents(wallet?.balance_cents || 0)}
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Closed-loop balance</div>
+            <div className="text-meta text-ink-3 mt-1.5">Closed-loop balance</div>
           </div>
 
-          <div className="glass-card p-4 rounded-2xl border border-white/10">
-            <div className="text-[10px] text-slate-400 uppercase font-mono">Lifetime Spend</div>
-            <div className="text-2xl font-black font-mono text-amber-400 mt-1 tabular-nums">
+          <div className="card rounded-card p-4">
+            <div className="micro-label text-ink-3">Lifetime Spend</div>
+            <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
               {formatCents(wallet?.lifetime_spend_cents || 0)}
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Likes & boosts</div>
+            <div className="text-meta text-ink-3 mt-1.5">Likes &amp; boosts</div>
           </div>
 
-          <div className="glass-card p-4 rounded-2xl border border-white/10">
-            <div className="text-[10px] text-slate-400 uppercase font-mono">My Ranked Stances</div>
-            <div className="text-2xl font-black font-mono text-white mt-1">
+          <div className="card rounded-card p-4">
+            <div className="micro-label text-ink-3">My Ranked Stances</div>
+            <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
               {metrics.total_posts}
             </div>
+            <div className="text-meta text-ink-3 mt-1.5">On the permanent board</div>
           </div>
 
-          <div className="glass-card p-4 rounded-2xl border border-white/10">
-            <div className="text-[10px] text-slate-400 uppercase font-mono">Top Active Rank</div>
-            <div className="text-2xl font-black font-mono text-cyan-400 mt-1">
+          <div className="card rounded-card p-4">
+            <div className="micro-label text-ink-3">Top Active Rank</div>
+            <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
               {metrics.active_top_rank ? `#${metrics.active_top_rank}` : 'None'}
             </div>
+            <div className="text-meta text-ink-3 mt-1.5">Best standing right now</div>
           </div>
         </div>
 
         {/* My Stances / Opinions */}
-        <div className="mt-10">
-          <h2 className="text-base font-bold text-white mb-4 flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-amber-400" />
-            <span>My Ranked Opinions ({posts.length})</span>
-          </h2>
+        <div className="mt-12">
+          <div className="flex items-center gap-2 mb-4">
+            <Trophy className="w-4 h-4 text-ink-3" aria-hidden />
+            <h2 className="text-xl font-bold tracking-tight text-ink">My Ranked Opinions</h2>
+            <span className="chip text-steel tnum">{posts.length}</span>
+          </div>
 
-          <div className="space-y-3">
-            {posts.map((post) => (
-              <div
-                key={post.id}
-                className="glass-card p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-              >
-                <div className="flex items-center gap-3">
+          <div className="panel rounded-card overflow-hidden">
+            <div className="hidden lg:grid lg:grid-cols-[3.5rem_1fr_7rem_auto] gap-4 items-center px-4 sm:px-5 py-2 border-b border-line bg-black/20">
+              <div className="micro-label text-ink-3 text-right">Rank</div>
+              <div className="micro-label text-ink-3">Stance</div>
+              <div className="micro-label text-ink-3 text-right">Score</div>
+              <div className="micro-label text-ink-3 text-right">Actions</div>
+            </div>
+
+            <div className="divide-y divide-line">
+              {posts.length > 0 ? (
+                posts.map((post) => (
                   <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center font-mono font-black ${
-                      post.rank === 1 ? 'bg-amber-500 text-black' : 'glass-segmented text-white'
-                    }`}
+                    key={post.id}
+                    className="relative px-4 sm:px-5 py-4 transition-colors duration-200 hover:bg-white/[0.04]"
                   >
-                    #{post.rank || '—'}
-                  </div>
+                    {post.rank === 1 && (
+                      <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-gold" />
+                    )}
 
-                  <div>
-                    <Link
-                      href={`/p/${post.slug}`}
-                      className="font-bold text-sm sm:text-base text-white hover:text-amber-300"
-                    >
-                      {post.title}
-                    </Link>
-                    <div className="text-xs text-slate-400 mt-0.5 font-mono flex items-center gap-2">
-                      <span>Score: ${post.display_score.toFixed(2)}</span>
-                      <span>•</span>
-                      <span className="text-cyan-300">{post.backers_count} backers</span>
-                      <span>•</span>
-                      <span>{formatCents(post.total_raised_cents)} raised</span>
+                    <div className="flex flex-col lg:grid lg:grid-cols-[3.5rem_1fr_7rem_auto] gap-3 lg:gap-4 lg:items-center">
+                      {/* Rank */}
+                      <div className="flex items-center lg:justify-end shrink-0">
+                        <span
+                          className={`metric text-xl leading-none tnum ${
+                            post.rank === 1 ? 'text-gold-text' : post.rank ? 'text-ink' : 'text-ink-3'
+                          }`}
+                        >
+                          #{post.rank || '—'}
+                        </span>
+                      </div>
+
+                      {/* Statement */}
+                      <div className="min-w-0">
+                        <Link
+                          href={`/p/${post.slug}`}
+                          className="font-semibold text-[15px] sm:text-base text-ink hover:text-gold-text transition-colors line-clamp-1 underline-offset-4 hover:underline"
+                        >
+                          {post.title}
+                        </Link>
+                        <div className="mt-1 flex items-center gap-2 text-meta text-ink-3 flex-wrap">
+                          <span className="tnum">{post.backers_count} backers</span>
+                          <span aria-hidden className="text-ink-3/50">·</span>
+                          <span className="tnum">{formatCents(post.total_raised_cents)} raised</span>
+                        </div>
+                      </div>
+
+                      {/* Score */}
+                      <div className="flex items-baseline gap-2 lg:block lg:text-right">
+                        <div className="micro-label text-ink-3 lg:hidden">Score</div>
+                        <div
+                          className={`metric text-lg leading-tight tnum ${
+                            post.rank === 1 ? 'text-gold-text' : 'text-ink'
+                          }`}
+                        >
+                          ${post.display_score.toFixed(2)}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-1.5 shrink-0 lg:justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-line">
+                        <Link
+                          href={`/p/${post.slug}`}
+                          className="btn btn-ghost btn-xs"
+                        >
+                          View Record
+                        </Link>
+
+                        <button
+                          onClick={() => {
+                            setSelectedPostForBoost(post);
+                            setIsBoostOpen(true);
+                          }}
+                          className="btn btn-ghost btn-xs text-gold-text hover:border-gold/40"
+                        >
+                          <Zap className="w-3 h-3" />
+                          <span>Boost</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <Link
-                    href={`/p/${post.slug}`}
-                    className="btn-glass-dark px-3 py-1.5 rounded-xl text-xs font-semibold"
-                  >
-                    View Record
-                  </Link>
-
-                  <button
-                    onClick={() => {
-                      setSelectedPostForBoost(post);
-                      setIsBoostOpen(true);
-                    }}
-                    className="btn-glass-gold px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Zap className="w-3 h-3" />
-                    <span>Boost</span>
-                  </button>
-                </div>
-              </div>
-            ))}
+                ))
+              ) : (
+                <p className="text-dense text-ink-3 py-10 text-center">No ranked stances yet.</p>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Wallet Ledger History */}
-        <div className="mt-10">
-          <h2 className="text-base font-bold text-white mb-4 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-emerald-400" />
-            <span>Wallet Transaction Ledger ({ledger.length})</span>
-          </h2>
+        <div className="mt-12">
+          <div className="flex items-center gap-2 mb-4">
+            <CreditCard className="w-4 h-4 text-ink-3" aria-hidden />
+            <h2 className="text-xl font-bold tracking-tight text-ink">Wallet Transaction Ledger</h2>
+            <span className="chip text-steel tnum">{ledger.length}</span>
+          </div>
 
-          <div className="glass-panel p-5 rounded-3xl border border-white/10 space-y-2">
-            {ledger.length > 0 ? (
-              ledger.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="glass-card p-3 rounded-xl flex items-center justify-between text-xs font-mono"
-                >
-                  <div className="flex items-center gap-3">
+          <div className="panel rounded-card overflow-hidden">
+            <div className="hidden sm:grid sm:grid-cols-[7rem_1fr_9rem_7rem] gap-4 items-center px-4 sm:px-5 py-2 border-b border-line bg-black/20">
+              <div className="micro-label text-ink-3 text-right">Amount</div>
+              <div className="micro-label text-ink-3">Type</div>
+              <div className="micro-label text-ink-3 text-right">Balance After</div>
+              <div className="micro-label text-ink-3 text-right">When</div>
+            </div>
+
+            <div className="divide-y divide-line max-h-[28rem] overflow-y-auto">
+              {ledger.length > 0 ? (
+                ledger.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between gap-4 sm:grid sm:grid-cols-[7rem_1fr_9rem_7rem] px-4 sm:px-5 py-2.5 text-dense transition-colors duration-200 hover:bg-white/[0.04]"
+                  >
                     <span
-                      className={`font-bold ${
-                        entry.delta_cents > 0 ? 'text-emerald-400' : 'text-slate-300'
+                      className={`font-semibold tnum sm:text-right ${
+                        entry.delta_cents > 0 ? 'text-up' : 'text-ink-2'
                       }`}
                     >
                       {entry.delta_cents > 0 ? `+${formatCents(entry.delta_cents)}` : formatCents(entry.delta_cents)}
                     </span>
-                    <span className="text-slate-400 font-sans uppercase text-[10px] px-1.5 py-0.5 rounded bg-white/5">
-                      {entry.kind}
+
+                    <span className="hidden sm:block">
+                      <span className="chip text-steel">{entry.kind}</span>
                     </span>
-                    <span className="text-slate-500">
-                      Balance: {formatCents(entry.balance_after_cents)}
+
+                    <span className="hidden sm:block text-ink-3 tnum text-right">
+                      {formatCents(entry.balance_after_cents)}
                     </span>
+
+                    <span className="text-meta text-ink-3 text-right">{timeAgo(entry.created_at)}</span>
                   </div>
-                  <span className="text-slate-500">{timeAgo(entry.created_at)}</span>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-400 py-6 text-center">No wallet activity yet.</p>
-            )}
+                ))
+              ) : (
+                <p className="text-dense text-ink-3 py-10 text-center">No wallet activity yet.</p>
+              )}
+            </div>
           </div>
         </div>
       </div>

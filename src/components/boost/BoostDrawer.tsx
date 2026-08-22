@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Zap, Trophy, ShieldCheck, Clock, CheckCircle2, ArrowRight, Sparkles, CreditCard, Flame } from 'lucide-react';
+import { X, Zap, Trophy, ShieldCheck, Sparkles, CreditCard } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { RankedPostView, Quote } from '@/lib/types';
 import { formatUSD, formatScore, formatCents } from '@/lib/utils';
@@ -103,7 +103,7 @@ export const BoostDrawer: React.FC<BoostDrawerProps> = ({
             particleCount: 50,
             spread: 60,
             origin: { y: 0.6 },
-            colors: ['#fbbf24', '#f59e0b', '#06b6d4'],
+            colors: ['#F0A824', '#FFC53D', '#FFFFFF'],
           });
           onSuccess(result);
           onClose();
@@ -132,7 +132,7 @@ export const BoostDrawer: React.FC<BoostDrawerProps> = ({
             particleCount: 100,
             spread: 80,
             origin: { y: 0.6 },
-            colors: ['#fbbf24', '#f59e0b', '#06b6d4', '#10b981'],
+            colors: ['#F0A824', '#FFC53D', '#FFFFFF'],
           });
           onSuccess(result);
           onClose();
@@ -162,50 +162,63 @@ export const BoostDrawer: React.FC<BoostDrawerProps> = ({
 
   const hasEnoughFunds = walletBalanceCents >= costCents;
 
+  const ladderOptions = [
+    { key: 'boost' as const, price: '$0.10', label: 'Boost', sub: '10 units', Icon: Zap },
+    { key: 'super' as const, price: '$1.00', label: 'Super Boost', sub: 'Named entry', Icon: Sparkles },
+    { key: 'power' as const, price: '$10+', label: 'Power Boost', sub: 'Target rank #N', Icon: Trophy },
+  ];
+
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[rgba(4,6,12,0.65)] backdrop-blur-md">
         <div className="fixed inset-0" onClick={onClose} />
 
-        <div className="relative z-10 w-full max-w-lg glass-panel sm:rounded-3xl rounded-t-3xl border border-white/20 p-6 sm:p-8 shadow-2xl overflow-hidden animate-rank-climb">
+        <div className="relative z-10 w-full max-w-lg panel sm:rounded-modal rounded-t-modal p-6 sm:p-8 overflow-hidden animate-rise">
           {/* Header */}
-          <div className="flex items-start justify-between pb-4 border-b border-white/10">
-            <div>
-              <div className="flex items-center gap-2 text-xs font-mono text-amber-400 font-semibold uppercase">
+          <div className="flex items-start justify-between gap-3 pb-4 border-b border-line">
+            <div className="min-w-0">
+              <div className="kicker-gold kicker flex items-center gap-1.5">
                 <Zap className="w-3.5 h-3.5" />
-                <span>Interaction Ladder</span>
+                <span>Interaction ladder</span>
               </div>
-              <h3 className="text-lg font-bold text-white mt-1 line-clamp-1">
+              <h3 className="text-lg font-bold tracking-tight text-ink mt-1 line-clamp-1">
                 {post.title}
               </h3>
-              <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
-                <span>Current: <strong className="text-white">#{post.rank}</strong></span>
-                <span>•</span>
-                <span>Score: <strong className="text-amber-400 font-mono">{formatScore(post.display_score)}</strong></span>
-                <span>•</span>
-                <span><strong className="text-cyan-400">{post.backers_count.toLocaleString()}</strong> backers</span>
+              <div className="mt-1 flex items-center gap-2 text-meta text-ink-3 flex-wrap">
+                <span>
+                  Current <strong className="text-ink font-semibold tnum">#{post.rank}</strong>
+                </span>
+                <span aria-hidden className="text-ink-3/50">·</span>
+                <span>
+                  Score <strong className="text-gold-text font-semibold tnum">{formatScore(post.display_score)}</strong>
+                </span>
+                <span aria-hidden className="text-ink-3/50">·</span>
+                <span>
+                  <strong className="text-ink-2 font-semibold tnum">{post.backers_count.toLocaleString()}</strong> backers
+                </span>
               </div>
             </div>
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-full glass-card hover:bg-white/20 text-slate-400 hover:text-white"
+              className="btn btn-ghost btn-xs !px-1.5 shrink-0"
+              aria-label="Close"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Wallet Balance Display */}
-          <div className="mt-4 p-3 rounded-2xl glass-card flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-emerald-400" />
-              <span className="text-slate-300">Wallet Available:</span>
-              <strong className="font-mono text-white text-sm">{formatCents(walletBalanceCents)}</strong>
+          <div className="mt-4 sunken rounded-control p-3 text-dense flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <CreditCard className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+              <span className="text-ink-3">Wallet available</span>
+              <strong className="tnum font-semibold text-ink">{formatCents(walletBalanceCents)}</strong>
             </div>
 
             <button
               onClick={() => setIsTopUpModalOpen(true)}
-              className="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold underline cursor-pointer"
+              className="text-up text-meta font-semibold hover:underline cursor-pointer shrink-0"
             >
               + Refill
             </button>
@@ -213,74 +226,47 @@ export const BoostDrawer: React.FC<BoostDrawerProps> = ({
 
           {/* Interaction Ladder Selector (§6) */}
           <div className="mt-5 space-y-2">
-            <label className="text-xs font-semibold text-slate-300 block">
-              Choose Conviction Level:
-            </label>
+            <label className="kicker block mb-1.5">Choose conviction level</label>
 
             <div className="grid grid-cols-3 gap-2">
-              {/* Option 1: Boost $0.10 */}
-              <button
-                onClick={() => setBoostLadderKind('boost')}
-                className={`p-3 rounded-2xl text-left transition-all cursor-pointer ${
-                  boostLadderKind === 'boost'
-                    ? 'bg-amber-500/25 border border-amber-400 shadow-md'
-                    : 'glass-card text-slate-400 hover:text-white hover:border-white/20'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-mono font-black text-amber-400 text-sm">$0.10</span>
-                  <Zap className="w-3.5 h-3.5 text-amber-400" />
-                </div>
-                <div className="font-bold text-xs text-white">Boost</div>
-                <div className="text-[10px] text-slate-400">10 units</div>
-              </button>
-
-              {/* Option 2: Super Boost $1.00 */}
-              <button
-                onClick={() => setBoostLadderKind('super')}
-                className={`p-3 rounded-2xl text-left transition-all cursor-pointer ${
-                  boostLadderKind === 'super'
-                    ? 'bg-cyan-500/25 border border-cyan-400 shadow-md'
-                    : 'glass-card text-slate-400 hover:text-white hover:border-white/20'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-mono font-black text-cyan-400 text-sm">$1.00</span>
-                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                </div>
-                <div className="font-bold text-xs text-white">Super Boost</div>
-                <div className="text-[10px] text-slate-400">Named entry</div>
-              </button>
-
-              {/* Option 3: Power Boost $10+ Quote */}
-              <button
-                onClick={() => {
-                  setBoostLadderKind('power');
-                  fetchQuote(targetRank);
-                }}
-                className={`p-3 rounded-2xl text-left transition-all cursor-pointer ${
-                  boostLadderKind === 'power'
-                    ? 'bg-purple-500/25 border border-purple-400 shadow-md'
-                    : 'glass-card text-slate-400 hover:text-white hover:border-white/20'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-mono font-black text-purple-400 text-sm">$10+</span>
-                  <Trophy className="w-3.5 h-3.5 text-purple-400" />
-                </div>
-                <div className="font-bold text-xs text-white">Power Boost</div>
-                <div className="text-[10px] text-slate-400">Target Rank #N</div>
-              </button>
+              {ladderOptions.map(({ key, price, label, sub, Icon }) => {
+                const isSelected = boostLadderKind === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setBoostLadderKind(key);
+                      if (key === 'power') fetchQuote(targetRank);
+                    }}
+                    className={`rounded-control p-3 text-left transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-gold/[0.14] shadow-[inset_0_0_0_1px_rgb(240_168_36/0.35)]'
+                        : 'sunken hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span
+                        className={`tnum metric text-sm ${isSelected ? 'text-gold-text' : 'text-ink-2'}`}
+                      >
+                        {price}
+                      </span>
+                      <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-gold-text' : 'text-ink-3'}`} />
+                    </div>
+                    <div className="text-dense font-semibold text-ink">{label}</div>
+                    <div className="text-micro text-ink-3">{sub}</div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* If Power Boost selected: Target Rank Selector */}
           {boostLadderKind === 'power' && (
-            <div className="mt-4 p-4 rounded-2xl glass-card border border-purple-500/30 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-purple-300">Target Rank to Take:</span>
-                <span className="text-[11px] text-slate-400 font-mono">
-                  Quote Lock: {Math.floor(quoteTimeLeft / 60)}:{(quoteTimeLeft % 60).toString().padStart(2, '0')}
+            <div className="mt-4 sunken rounded-control p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="kicker">Target rank to take</span>
+                <span className="text-micro text-ink-3 tnum">
+                  Quote lock {Math.floor(quoteTimeLeft / 60)}:{(quoteTimeLeft % 60).toString().padStart(2, '0')}
                 </span>
               </div>
 
@@ -292,10 +278,10 @@ export const BoostDrawer: React.FC<BoostDrawerProps> = ({
                       setTargetRank(r);
                       fetchQuote(r);
                     }}
-                    className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`py-2 rounded-control text-dense tnum font-semibold transition-colors cursor-pointer ${
                       targetRank === r
-                        ? 'bg-purple-500 text-white font-black shadow-md'
-                        : 'glass-segmented text-slate-300 hover:text-white'
+                        ? 'bg-gold/[0.16] text-gold-text shadow-[inset_0_0_0_1px_rgb(240_168_36/0.35)]'
+                        : 'sunken text-ink-3 hover:text-ink'
                     }`}
                   >
                     Take #{r}
@@ -303,9 +289,9 @@ export const BoostDrawer: React.FC<BoostDrawerProps> = ({
                 ))}
               </div>
 
-              <div className="flex items-baseline justify-between pt-2 border-t border-white/10 text-xs">
-                <span className="text-slate-400">Calculated Needed Spend:</span>
-                <span className="text-lg font-mono font-black text-white">
+              <div className="flex items-baseline justify-between gap-2 pt-2 border-t border-line">
+                <span className="text-meta text-ink-3">Calculated needed spend</span>
+                <span className="metric text-lg tnum text-ink">
                   {quote ? formatUSD(quote.amount_cents / 100) : '$...'}
                 </span>
               </div>
@@ -313,15 +299,15 @@ export const BoostDrawer: React.FC<BoostDrawerProps> = ({
           )}
 
           {/* Action CTA */}
-          <div className="mt-6 space-y-2">
+          <div className="mt-6 space-y-3">
             {hasEnoughFunds ? (
               <button
                 onClick={handleExecuteBoost}
                 disabled={isSettling || isLoadingQuote}
-                className="w-full btn-glass-gold py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 cursor-pointer shadow-xl disabled:opacity-50"
+                className="btn btn-gold w-full"
               >
                 {isSettling ? (
-                  <span>Executing Spend from Wallet...</span>
+                  <span>Executing spend from wallet...</span>
                 ) : (
                   <>
                     <Zap className="w-4 h-4" />
@@ -332,16 +318,16 @@ export const BoostDrawer: React.FC<BoostDrawerProps> = ({
             ) : (
               <button
                 onClick={() => setIsTopUpModalOpen(true)}
-                className="w-full btn-glass-cyan py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 cursor-pointer shadow-xl"
+                className="btn btn-ghost w-full text-up"
               >
                 <CreditCard className="w-4 h-4" />
-                <span>Refill Wallet to Execute ({formatCents(costCents - walletBalanceCents)} shortfall)</span>
+                <span>Refill wallet to execute ({formatCents(costCents - walletBalanceCents)} shortfall)</span>
               </button>
             )}
 
-            <div className="flex items-center justify-center gap-2 text-[11px] text-slate-500">
-              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Sub-500ms Internal Ledger • Instant Public Record</span>
+            <div className="flex items-center justify-center gap-1.5 micro-label text-ink-3">
+              <ShieldCheck className="w-3 h-3" />
+              <span>Sub-500ms internal ledger · Instant public record</span>
             </div>
           </div>
         </div>

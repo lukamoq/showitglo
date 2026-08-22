@@ -20,7 +20,7 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
   onTopUpSuccess,
   recommendedCents,
 }) => {
-  const [selectedCents, setSelectedCents] = useState<number>(recommendedCents || 1000); // default $10.00
+  const [selectedCents, setSelectedCents] = useState<number>(recommendedCents || 300); // default $3.00 accessible top-up
   const [customDollars, setCustomDollars] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'apple_pay' | 'link' | 'card'>('apple_pay');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -36,14 +36,14 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
   const handleCustomChange = (val: string) => {
     setCustomDollars(val);
     const num = parseFloat(val);
-    if (!isNaN(num) && num >= 5) {
+    if (!isNaN(num) && num >= 1) {
       setSelectedCents(Math.round(num * 100));
     }
   };
 
   const handleExecuteTopUp = async (method = paymentMethod) => {
-    if (selectedCents < 500) {
-      alert('Minimum top-up is $5.00');
+    if (selectedCents < 100) {
+      alert('Minimum top-up is $1.00');
       return;
     }
     setIsProcessing(true);
@@ -134,7 +134,7 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
           </label>
 
           <div className="grid grid-cols-4 gap-2">
-            {[500, 1000, 2000, 5000].map((cents) => (
+            {[100, 300, 500, 1000].map((cents) => (
               <button
                 key={cents}
                 onClick={() => handleSelectChip(cents)}
@@ -156,11 +156,11 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
             </span>
             <input
               type="number"
-              min="5"
+              min="1"
               step="1"
               value={customDollars}
               onChange={(e) => handleCustomChange(e.target.value)}
-              placeholder="Custom amount ($5 min, $500 max)..."
+              placeholder="Custom amount ($1 min, $50 max)..."
               className="w-full pl-8 pr-4 py-2 rounded-xl glass-card border border-white/10 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-emerald-400/50"
             />
           </div>

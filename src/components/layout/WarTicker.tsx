@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Flame, Swords, TrendingUp } from 'lucide-react';
+import { Swords } from 'lucide-react';
 import { WarEvent } from '@/lib/types';
 import { formatUSD } from '@/lib/utils';
 
@@ -14,45 +14,50 @@ export const WarTicker: React.FC<WarTickerProps> = ({ wars = [] }) => {
   if (wars.length === 0) return null;
 
   return (
-    <div className="w-full bg-gradient-to-r from-rose-950/60 via-amber-950/40 to-rose-950/60 border-b border-rose-500/20 py-2 px-4 overflow-hidden relative backdrop-blur-md">
-      <div className="max-w-7xl mx-auto flex items-center gap-3">
-        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-bold uppercase tracking-wider shrink-0">
-          <Flame className="w-3.5 h-3.5 animate-pulse text-rose-400" />
-          <span>Active War</span>
+    <div className="w-full border-b border-line bg-black/30 backdrop-blur-md py-1.5 px-4">
+      <div className="max-w-6xl mx-auto flex items-center gap-4 tape text-ink-2">
+        <div className="micro-label text-down flex items-center gap-1.5 shrink-0">
+          <span className="led led-down" aria-hidden />
+          <span>Live fights</span>
         </div>
 
-        <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-8 text-xs font-mono">
+        <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-3 min-w-0">
           {wars.map((war, idx) => (
-            <Link
-              key={idx}
-              href="/wars"
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0 text-slate-300 group"
-            >
-              <span className="font-semibold text-white group-hover:text-amber-300">
-                #{war.post_a.rank} {war.post_a.title.substring(0, 32)}...
-              </span>
-              <span className="text-amber-400">({formatUSD(war.post_a.score)})</span>
-              
-              <Swords className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+            <React.Fragment key={idx}>
+              {idx > 0 && (
+                <span aria-hidden className="text-ink-3/40 shrink-0">
+                  |
+                </span>
+              )}
+              <Link
+                href="/wars"
+                className="flex items-center gap-2 shrink-0 transition-opacity hover:opacity-80"
+              >
+                <span className="text-ink font-medium">
+                  #{war.post_a.rank} {war.post_a.title.substring(0, 32)}...
+                </span>
+                <span className="tnum text-gold-text">{formatUSD(war.post_a.score)}</span>
 
-              <span className="font-semibold text-white group-hover:text-amber-300">
-                #{war.post_b.rank} {war.post_b.title.substring(0, 32)}...
-              </span>
-              <span className="text-amber-400">({formatUSD(war.post_b.score)})</span>
+                <Swords className="w-3 h-3 text-down shrink-0" aria-hidden />
 
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                {war.flip_count_24h} lead changes (24h)
-              </span>
-            </Link>
+                <span className="text-ink font-medium">
+                  #{war.post_b.rank} {war.post_b.title.substring(0, 32)}...
+                </span>
+                <span className="tnum text-gold-text">{formatUSD(war.post_b.score)}</span>
+
+                <span className="chip text-down">
+                  {war.flip_count_24h} lead changes (24h)
+                </span>
+              </Link>
+            </React.Fragment>
           ))}
         </div>
 
         <Link
           href="/wars"
-          className="hidden sm:flex items-center gap-1 text-xs text-rose-400 hover:text-rose-300 font-semibold shrink-0"
+          className="hidden sm:block text-meta text-ink-3 hover:text-ink transition-colors shrink-0"
         >
-          <span>View All</span>
-          <TrendingUp className="w-3.5 h-3.5" />
+          View all
         </Link>
       </div>
     </div>

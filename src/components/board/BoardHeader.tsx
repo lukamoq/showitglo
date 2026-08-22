@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Trophy, TrendingUp, Users, Clock, Zap, Swords, Megaphone, Mic, ShieldAlert, Sparkles, ArrowRight } from 'lucide-react';
+import { Megaphone, Mic } from 'lucide-react';
 import { formatUSD } from '@/lib/utils';
 import { Category } from '@/lib/types';
 import { LiveVisitorsBadge } from '../live/LiveVisitorsBadge';
@@ -22,160 +22,135 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
   distinctPayers,
   onOpenCreate,
 }) => {
+  const halfLifeHours = category?.half_life_hours || 168;
+  const incrementStrategy =
+    category?.increment_strategy === 'percent'
+      ? '+10% (floor $0.50)'
+      : category?.increment_strategy || 'Percent';
+
+  const stats = [
+    {
+      label: '#1 price to beat',
+      value: formatUSD(topPrice),
+      foot: `To beat: ${incrementStrategy}`,
+      gold: true,
+    },
+    {
+      label: 'Total backing',
+      value: formatUSD(totalVolume),
+      foot: 'Crowd pennies + power boosts',
+    },
+    {
+      label: 'Distinct backers',
+      value: distinctPayers.toLocaleString(),
+      foot: 'Wallets standing behind stances',
+    },
+    {
+      label: 'Decay half-life',
+      value: `${halfLifeHours}h`,
+      foot: '1¢ like · 10¢ boost',
+    },
+  ];
+
   return (
-    <div className="relative w-full pt-6 pb-8">
-      {/* Ambient Orbs */}
-      <div className="orb-glow-gold top-0 left-1/4 -translate-x-1/2 opacity-70" />
-      <div className="orb-glow-cyan top-10 right-1/4 translate-x-1/2 opacity-50" />
+    <div className="relative w-full pt-10 pb-12 sm:pt-14 sm:pb-16">
+      <div className="orb orb-gold -top-56 -left-40 opacity-80" aria-hidden />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Title and tagline */}
-        <div className="text-center max-w-4xl mx-auto mb-10">
-          <div className="flex items-center justify-center gap-3 flex-wrap mb-4">
-            <LiveVisitorsBadge variant="badge" />
+      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-8 lg:gap-12 items-start">
+          {/* Left — the pitch */}
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <LiveVisitorsBadge variant="compact" />
+              <span className="chip text-gold-text !whitespace-normal">
+                No stage? No algorithm? No censors. Here, the market decides.
+              </span>
+            </div>
 
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-segmented border border-amber-500/40 text-amber-300 text-xs font-semibold tracking-wide shadow-xl">
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block" />
-              <span>Always wanted to share your opinion but you didn&apos;t get the stage or got censored? We don&apos;t!</span>
+            <h1 className="display-hero text-ink mt-5">
+              <span className="reveal-line">
+                <span style={{ animationDelay: '0.04s' }}>The public stage</span>
+              </span>
+              <span className="reveal-line">
+                <span style={{ animationDelay: '0.13s' }}>where opinions</span>
+              </span>
+              <span className="reveal-line">
+                <span className="text-gold-text" style={{ animationDelay: '0.22s' }}>
+                  fight for rank.
+                </span>
+              </span>
+            </h1>
+
+            <p className="text-[15px] text-ink-2 leading-relaxed max-w-[52ch] mt-5">
+              <span className="tnum">A like is 1¢. A boost is 10¢.</span> No shadowbans, no
+              algorithmic gatekeepers, no silent censorship — say it out loud or put paid crowd
+              weight behind a demand, and the market decides what rises.
+            </p>
+
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <button onClick={onOpenCreate} className="btn btn-gold">
+                Take the stage — 1¢
+              </button>
+              <a href="#board-table" className="btn btn-ghost">
+                Watch the board
+              </a>
             </div>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-tight">
-            Let the World Decide <br />
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-200">
-              What Opinion is Real.
-            </span>
-          </h1>
+          {/* Right — market terminal slab */}
+          <div className="card rounded-card overflow-hidden w-full">
+            <div className="px-4 py-2 border-b border-line flex items-center justify-between gap-3">
+              <span className="kicker">Market terminal</span>
+              <span className="led led-gold" aria-hidden />
+            </div>
 
-          <p className="mt-4 text-sm sm:text-base text-slate-300 max-w-3xl mx-auto leading-relaxed">
-            No shadowbans. No algorithmic gatekeepers. No silent censorship. Whether you want to <strong>say what everyone is thinking out loud</strong> or <strong>force companies to change things with paid crowd demands</strong> — this is the uncensored public arena where the people decide what rises to the top.
-          </p>
-
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <button
-              onClick={onOpenCreate}
-              className="btn-glass-gold px-6 py-3.5 rounded-2xl text-sm font-bold shadow-xl flex items-center gap-2 cursor-pointer"
-            >
-              <Swords className="w-4 h-4" />
-              <span>Claim The Stage & Post (1¢)</span>
-            </button>
-            <a
-              href="#board-table"
-              className="btn-glass-dark px-6 py-3.5 rounded-2xl text-sm font-semibold hover:border-white/30"
-            >
-              Explore Live Arena
-            </a>
+            <div className="grid grid-cols-2">
+              {stats.map((stat, i) => (
+                <div
+                  key={stat.label}
+                  className={`p-4 ${i % 2 === 0 ? 'border-r border-line' : ''} ${
+                    i < 2 ? 'border-b border-line' : ''
+                  }`}
+                >
+                  <div className="micro-label text-ink-3">{stat.label}</div>
+                  <div
+                    className={`metric text-2xl tnum mt-1.5 leading-none ${
+                      stat.gold ? 'text-gold-text' : 'text-ink'
+                    }`}
+                  >
+                    {stat.value}
+                  </div>
+                  <div className="text-meta text-ink-3 mt-1.5">{stat.foot}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* 2-Column Mission Feature Cards: "Say Things Out Loud" vs "Change Things" */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 max-w-4xl mx-auto">
-          {/* Card 1: Say Things Out Loud */}
-          <div className="glass-panel p-5 rounded-3xl border border-amber-500/30 bg-gradient-to-br from-slate-950 via-slate-900/80 to-amber-950/20 shadow-xl">
-            <div className="flex items-center gap-2.5 mb-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                <Mic className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="text-[10px] text-amber-400 uppercase font-mono font-bold">Unfiltered Public Stage</span>
-                <h3 className="font-bold text-sm text-white">Say Things Out Loud</h3>
-              </div>
+        {/* Mission — two quiet cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-10 lg:mt-12">
+          <div className="card rounded-card p-5">
+            <div className="flex items-center gap-2">
+              <Mic className="w-4 h-4 text-ink-3" aria-hidden />
+              <span className="kicker">Unfiltered public stage</span>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              No black-box algorithms deciding who gets seen. Put your conviction on the permanent public record where every like and penny boost directly commands front-page rank.
+            <h3 className="text-sm font-semibold text-ink mt-2.5">Say Things Out Loud</h3>
+            <p className="text-dense text-ink-3 leading-relaxed mt-1.5">
+              No black-box algorithm decides who gets seen. Put your conviction on the permanent
+              public record, where every like and penny boost commands front-page rank.
             </p>
           </div>
 
-          {/* Card 2: Change Things */}
-          <div className="glass-panel p-5 rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-slate-950 via-slate-900/80 to-cyan-950/20 shadow-xl">
-            <div className="flex items-center gap-2.5 mb-2.5">
-              <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-                <Megaphone className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="text-[10px] text-cyan-400 uppercase font-mono font-bold">Paid Crowd Mandates</span>
-                <h3 className="font-bold text-sm text-white">Change Things</h3>
-              </div>
+          <div className="card rounded-card p-5">
+            <div className="flex items-center gap-2">
+              <Megaphone className="w-4 h-4 text-ink-3" aria-hidden />
+              <span className="kicker">Paid crowd mandates</span>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Petitions are ignored because signatures are free. When 15,000 paying consumers rally $5,000+ behind a demand at a company, brands are forced to answer on the record.
+            <h3 className="text-sm font-semibold text-ink mt-2.5">Change Things</h3>
+            <p className="text-dense text-ink-3 leading-relaxed mt-1.5">
+              Petitions get ignored because signatures are free. When 15,000 paying consumers rally
+              $5,000+ behind a demand, brands are forced to answer on the record.
             </p>
-          </div>
-        </div>
-
-        {/* 4-Stat High Density Market Terminal Bar */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {/* Stat 1: #1 Price to Beat */}
-          <div className="glass-card p-4 rounded-2xl border border-amber-500/30 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-xl group-hover:bg-amber-500/20 transition-colors" />
-            <div className="flex items-center justify-between text-xs text-amber-400/90 font-medium">
-              <span className="flex items-center gap-1.5">
-                <Trophy className="w-4 h-4 text-amber-400" />
-                #1 Price to Beat
-              </span>
-              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-mono">
-                Crown
-              </span>
-            </div>
-            <div className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-white tabular-nums">
-              {formatUSD(topPrice)}
-            </div>
-            <div className="mt-1 text-[11px] text-slate-400">
-              Score needed to take #1 crown
-            </div>
-          </div>
-
-          {/* Stat 2: Total Volume Raised */}
-          <div className="glass-card p-4 rounded-2xl border border-white/10 relative overflow-hidden group">
-            <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-              <span className="flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
-                Total Backing Raised
-              </span>
-              <span className="text-[10px] text-emerald-400 font-mono">Arena</span>
-            </div>
-            <div className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-white tabular-nums">
-              {formatUSD(totalVolume)}
-            </div>
-            <div className="mt-1 text-[11px] text-slate-400">
-              Crowd pennies + whale power boosts
-            </div>
-          </div>
-
-          {/* Stat 3: Total Distinct Backers */}
-          <div className="glass-card p-4 rounded-2xl border border-white/10 relative overflow-hidden group">
-            <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-              <span className="flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-cyan-400" />
-                Penny Army Backers
-              </span>
-              <span className="text-[10px] text-cyan-400 font-mono">People</span>
-            </div>
-            <div className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-white tabular-nums">
-              {distinctPayers.toLocaleString()}
-            </div>
-            <div className="mt-1 text-[11px] text-slate-400">
-              Distinct wallets standing behind stances
-            </div>
-          </div>
-
-          {/* Stat 4: Decay & Interaction Ladder */}
-          <div className="glass-card p-4 rounded-2xl border border-white/10 relative overflow-hidden group">
-            <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-purple-400" />
-                7-Day Decay Flow
-              </span>
-              <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-mono">
-                {category?.half_life_hours || 168}h
-              </span>
-            </div>
-            <div className="mt-2 text-xl sm:text-2xl font-bold font-mono tracking-tight text-white">
-              1¢ Like • 10¢ Boost
-            </div>
-            <div className="mt-1 text-[11px] text-purple-300/80 font-mono">
-              Strategy: {category?.increment_strategy === 'percent' ? '+10% (floor $0.50)' : category?.increment_strategy || 'Percent'}
-            </div>
           </div>
         </div>
       </div>

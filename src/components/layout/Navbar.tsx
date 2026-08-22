@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Flame, ShieldAlert, History, PlusCircle, LayoutDashboard, Radio, Swords, BarChart3 } from 'lucide-react';
+import { Flame, ShieldAlert, PlusCircle, LayoutDashboard, Radio, Swords, BarChart3 } from 'lucide-react';
 import { WalletChip } from '../wallet/WalletChip';
 import { ShowItGloLogo } from '../brand/ShowItGloLogo';
 import { LiveVisitorsBadge } from '../live/LiveVisitorsBadge';
@@ -13,89 +13,61 @@ interface NavbarProps {
   onBalanceUpdated?: (cents: number) => void;
 }
 
+const NAV_LINK_BASE =
+  'px-3 py-1.5 rounded-control text-dense font-medium transition-colors flex items-center gap-1.5';
+const NAV_LINK_INACTIVE = 'text-ink-3 hover:text-ink hover:bg-white/5';
+const NAV_LINK_ACTIVE =
+  'bg-gold/[0.14] text-gold-text shadow-[inset_0_0_0_1px_rgb(240_168_36/0.30)]';
+
+const navLink = (isActive: boolean) =>
+  `${NAV_LINK_BASE} ${isActive ? NAV_LINK_ACTIVE : NAV_LINK_INACTIVE}`;
+
 export const Navbar: React.FC<NavbarProps> = ({ onOpenCreate, onBalanceUpdated }) => {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-white/10 glass-panel">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Brand with 2D Modern Logo */}
+    <header className="sticky top-0 z-40 w-full border-b border-line panel">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        {/* Brand */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 group">
             <ShowItGloLogo size={36} withText={true} />
           </Link>
 
           {/* Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1 ml-4 text-sm font-medium">
-            <Link
-              href="/"
-              className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
-                pathname === '/'
-                  ? 'bg-white/15 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Radio className="w-4 h-4 text-amber-400" />
+          <nav className="hidden md:flex items-center gap-1 ml-4">
+            <Link href="/" className={navLink(pathname === '/')}>
+              <Radio className="w-4 h-4" />
               Arena Board
             </Link>
 
             <Link
               href="/debates"
-              className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
-                pathname?.startsWith('/debates') || pathname?.startsWith('/d/')
-                  ? 'bg-white/15 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
+              className={navLink(
+                Boolean(pathname?.startsWith('/debates') || pathname?.startsWith('/d/'))
+              )}
             >
-              <Swords className="w-4 h-4 text-cyan-400" />
+              <Swords className="w-4 h-4" />
               Debates
             </Link>
 
-            <Link
-              href="/wars"
-              className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
-                pathname === '/wars'
-                  ? 'bg-white/15 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Flame className="w-4 h-4 text-rose-400" />
+            <Link href="/wars" className={navLink(pathname === '/wars')}>
+              <Flame className="w-4 h-4" />
               Live Fights
             </Link>
 
-            <Link
-              href="/insights"
-              className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
-                pathname === '/insights'
-                  ? 'bg-white/15 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4 text-emerald-400" />
+            <Link href="/insights" className={navLink(pathname === '/insights')}>
+              <BarChart3 className="w-4 h-4" />
               Insights API
             </Link>
 
-            <Link
-              href="/dashboard"
-              className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
-                pathname === '/dashboard'
-                  ? 'bg-white/15 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4 text-purple-400" />
+            <Link href="/dashboard" className={navLink(pathname === '/dashboard')}>
+              <LayoutDashboard className="w-4 h-4" />
               My Stances
             </Link>
 
-            <Link
-              href="/admin"
-              className={`px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 ${
-                pathname === '/admin'
-                  ? 'bg-white/15 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <ShieldAlert className="w-4 h-4 text-slate-400" />
+            <Link href="/admin" className={navLink(pathname === '/admin')}>
+              <ShieldAlert className="w-4 h-4" />
               Admin
             </Link>
           </nav>
@@ -109,10 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenCreate, onBalanceUpdated }
 
           <WalletChip onBalanceUpdated={onBalanceUpdated} />
 
-          <button
-            onClick={onOpenCreate}
-            className="btn-glass-gold px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-lg cursor-pointer"
-          >
+          <button onClick={onOpenCreate} className="btn btn-gold btn-sm">
             <PlusCircle className="w-4 h-4" />
             <span className="hidden sm:inline">Post Stance / Demand</span>
             <span className="sm:hidden">Post</span>

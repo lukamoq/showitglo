@@ -7,9 +7,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { amount_cents, user_id = 'usr_marc', payment_method = 'apple_pay' } = body;
 
-    if (!amount_cents || amount_cents < 500) {
+    if (!amount_cents || amount_cents < 100) {
       return NextResponse.json(
-        { error: 'Minimum wallet top-up is $5.00 (500 cents)' },
+        { error: 'Minimum wallet top-up is $1.00 (100 cents)' },
         { status: 400 }
       );
     }

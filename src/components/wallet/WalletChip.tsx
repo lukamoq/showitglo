@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Wallet as WalletIcon, Plus, CreditCard } from 'lucide-react';
+import { Wallet as WalletIcon, Plus } from 'lucide-react';
 import { formatCents } from '@/lib/utils';
 import { WalletTopUpModal } from './WalletTopUpModal';
 
@@ -41,17 +41,15 @@ export const WalletChip: React.FC<WalletChipProps> = ({
 
   return (
     <>
-      <div className="flex items-center gap-1.5 p-1 pl-3 rounded-full glass-segmented border border-emerald-500/30 text-xs font-mono">
-        <div className="flex items-center gap-1.5 text-emerald-400">
-          <WalletIcon className="w-3.5 h-3.5" />
-          <span className="font-bold tabular-nums text-white">
-            {formatCents(balanceCents)}
-          </span>
-        </div>
+      <div className="inline-flex items-center gap-2 pl-3 pr-1 py-1 rounded-control sunken text-dense">
+        <span className="flex items-center gap-1.5">
+          <WalletIcon className="w-3.5 h-3.5 text-ink-3" aria-hidden />
+          <span className="tnum font-semibold text-ink">{formatCents(balanceCents)}</span>
+        </span>
 
         <button
           onClick={() => setIsTopUpOpen(true)}
-          className="p-1 px-2 rounded-full bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 font-sans font-bold text-[11px] flex items-center gap-0.5 cursor-pointer transition-colors"
+          className="btn btn-ghost btn-xs text-up hover:border-up/40"
           title="Top up wallet balance"
         >
           <Plus className="w-3 h-3" />

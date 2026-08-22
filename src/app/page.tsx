@@ -11,7 +11,6 @@ import { CounterPostModal } from '@/components/post/CounterPostModal';
 import { ShareCardModal } from '@/components/post/ShareCardModal';
 import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
 import { RankedPostView, WarEvent, Category } from '@/lib/types';
-import { Sparkles } from 'lucide-react';
 
 export default function HomePage() {
   const [board, setBoard] = useState<RankedPostView[]>([]);
@@ -60,7 +59,7 @@ export default function HomePage() {
         if (data.type === 'rank_change') {
           fetchBoardData();
           setPulsingPostId(data.post_id);
-          setToastMessage(`⚡ "${data.post_title}" backed (+${data.kind || 'spend'}) -> #${data.new_rank}!`);
+          setToastMessage(`"${data.post_title}" backed (+${data.kind || 'spend'}) -> #${data.new_rank}!`);
           setTimeout(() => setPulsingPostId(null), 3000);
           setTimeout(() => setToastMessage(null), 5000);
         } else if (data.type === 'new_post') {
@@ -92,24 +91,24 @@ export default function HomePage() {
   const handleBoostSuccess = (result: any) => {
     fetchBoardData();
     setPulsingPostId(result.interaction?.post_id || result.boost?.post_id);
-    setToastMessage(`🎉 Interaction confirmed! Moved from #${result.old_rank} to #${result.new_rank}!`);
+    setToastMessage(`Interaction confirmed! Moved from #${result.old_rank} to #${result.new_rank}!`);
     setTimeout(() => setPulsingPostId(null), 4000);
     setTimeout(() => setToastMessage(null), 6000);
   };
 
   const handlePostCreated = (post: any) => {
     fetchBoardData();
-    setToastMessage(`✨ Opinion "${post.title}" entered the public arena!`);
+    setToastMessage(`Opinion "${post.title}" entered the public arena!`);
     setTimeout(() => setToastMessage(null), 5000);
   };
 
   return (
-    <div className="min-h-screen bg-[#060709] text-white flex flex-col relative overflow-x-hidden">
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-20 right-4 sm:right-8 z-50 animate-rank-climb">
-          <div className="px-4 py-3 rounded-2xl glass-panel border border-amber-500/50 bg-black/90 shadow-2xl text-xs font-semibold text-amber-300 flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-amber-400 animate-spin" />
+        <div className="fixed top-20 right-4 sm:right-8 z-50 animate-rise">
+          <div className="panel rounded-control px-4 py-3 flex items-center gap-2.5 text-dense text-ink">
+            <span className="led led-gold" aria-hidden />
             <span>{toastMessage}</span>
           </div>
         </div>
