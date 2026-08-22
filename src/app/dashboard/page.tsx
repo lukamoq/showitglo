@@ -200,7 +200,6 @@ export default function DashboardPage() {
             <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
               {metrics.total_posts}
             </div>
-            <div className="text-meta text-ink-3 mt-1.5">On the permanent board</div>
           </div>
 
           <div className="card rounded-card p-4">
@@ -208,7 +207,6 @@ export default function DashboardPage() {
             <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
               {metrics.active_top_rank ? `#${metrics.active_top_rank}` : 'None'}
             </div>
-            <div className="text-meta text-ink-3 mt-1.5">Best standing right now</div>
           </div>
         </div>
 
@@ -329,7 +327,7 @@ export default function DashboardPage() {
                 ledger.map((entry) => (
                   <div
                     key={entry.id}
-                    className="flex items-center justify-between gap-4 sm:grid sm:grid-cols-[7rem_1fr_9rem_7rem] px-4 sm:px-5 py-2.5 text-dense transition-colors duration-200 hover:bg-white/[0.04]"
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:grid sm:grid-cols-[7rem_1fr_9rem_7rem] sm:gap-4 px-4 sm:px-5 py-2.5 text-dense transition-colors duration-200 hover:bg-white/[0.04]"
                   >
                     <span
                       className={`font-semibold tnum sm:text-right ${
@@ -339,15 +337,18 @@ export default function DashboardPage() {
                       {entry.delta_cents > 0 ? `+${formatCents(entry.delta_cents)}` : formatCents(entry.delta_cents)}
                     </span>
 
-                    <span className="hidden sm:block">
+                    <span>
                       <span className="chip text-steel">{entry.kind}</span>
                     </span>
 
-                    <span className="hidden sm:block text-ink-3 tnum text-right">
+                    <span className="text-ink-3 tnum sm:text-right">
+                      <span className="sm:hidden micro-label mr-1">Balance</span>
                       {formatCents(entry.balance_after_cents)}
                     </span>
 
-                    <span className="text-meta text-ink-3 text-right">{timeAgo(entry.created_at)}</span>
+                    <span className="text-meta text-ink-3 text-right ml-auto sm:ml-0">
+                      {timeAgo(entry.created_at)}
+                    </span>
                   </div>
                 ))
               ) : (

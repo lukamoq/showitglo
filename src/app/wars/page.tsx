@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BoostDrawer } from '@/components/boost/BoostDrawer';
 import { FightPair, RankedPostView } from '@/lib/types';
-import { formatUSD, formatScore } from '@/lib/utils';
-import { Flame, Swords, Zap, Users, Heart, ArrowRight, ShieldCheck } from 'lucide-react';
+import { formatUSD } from '@/lib/utils';
+import { Swords, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { HoldToLikeButton } from '@/components/interactions/HoldToLikeButton';
 import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
@@ -36,181 +36,203 @@ export default function WarsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#060709] text-white flex flex-col relative overflow-x-hidden">
-      <div className="orb-glow-gold top-10 left-1/4 opacity-40" />
-      <div className="orb-glow-cyan top-30 right-1/4 opacity-40" />
-
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden">
       <Navbar />
 
-      <div className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+      <div className="flex-1 w-full">
         {/* Header */}
-        <div className="text-center max-w-2xl mx-auto mb-10">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-bold uppercase tracking-wider mb-3">
-            <Swords className="w-4 h-4 animate-pulse" />
-            <span>The Fight Arena • Rebuttals & Rivalries</span>
+        <div className="relative pt-10 pb-8 sm:pt-14 sm:pb-10">
+          <div className="orb orb-gold -top-64 -left-40 opacity-70" aria-hidden />
+
+          <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="kicker kicker-gold flex items-center gap-2">
+              <Swords className="w-4 h-4" aria-hidden />
+              <span>The fight arena · Rebuttals &amp; rivalries</span>
+            </div>
+
+            <h1 className="text-3xl font-bold tracking-tight text-ink mt-3">Live Opinion Fights</h1>
+
+            <p className="text-[15px] text-ink-2 leading-relaxed max-w-[62ch] mt-3">
+              Disagreement is expressed by elevating counter-opinions.{' '}
+              <span className="tnum">Back your side with a 1¢ like</span> or a power boost to win
+              the front page.
+            </p>
           </div>
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-            Live Opinion Fights
-          </h1>
-          <p className="mt-3 text-sm text-slate-300">
-            Disagreement is expressed by elevating counter-opinions. Back your side with a 1¢ like or power boost to win the front page.
-          </p>
         </div>
 
-        {/* Fights List */}
-        {fights.length > 0 ? (
-          <div className="space-y-8">
-            {fights.map((fight) => {
-              const totalScore = fight.post_a.display_score + fight.post_b.display_score;
-              const pctA = totalScore > 0 ? Math.round((fight.post_a.display_score / totalScore) * 100) : 50;
-              const pctB = 100 - pctA;
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+          {/* Fights ledger */}
+          {fights.length > 0 ? (
+            <div className="panel rounded-card overflow-hidden animate-rise">
+              <div className="px-4 sm:px-6 py-3 border-b border-line flex items-center justify-between gap-3">
+                <span className="kicker">Active fight pairs</span>
+                <span className="text-meta text-ink-3 tnum">{fights.length} on the board</span>
+              </div>
 
-              return (
-                <div
-                  key={fight.id}
-                  className="glass-panel p-6 sm:p-8 rounded-3xl border border-rose-500/30 shadow-2xl relative overflow-hidden bg-gradient-to-br from-slate-950 via-rose-950/20 to-slate-950"
-                >
-                  {/* Header Badge */}
-                  <div className="flex items-center justify-between pb-4 border-b border-white/10">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-mono font-bold flex items-center gap-1">
-                        <Swords className="w-3.5 h-3.5" />
-                        {fight.lead_changes_24h} Lead Changes (24h)
-                      </span>
-                    </div>
+              <div className="divide-y divide-line">
+                {fights.map((fight) => {
+                  const totalScore = fight.post_a.display_score + fight.post_b.display_score;
+                  const pctA = totalScore > 0 ? Math.round((fight.post_a.display_score / totalScore) * 100) : 50;
+                  const pctB = 100 - pctA;
+                  const aLeads = fight.post_a.display_score >= fight.post_b.display_score;
 
-                    <span className="text-xs text-slate-400 font-mono">
-                      Battle for Rank #{Math.min(fight.post_a.rank || 1, fight.post_b.rank || 2)}
-                    </span>
-                  </div>
-
-                  {/* Tug-of-War Strength Meter */}
-                  <div className="my-6">
-                    <div className="flex items-center justify-between text-xs font-mono font-bold mb-2">
-                      <span className="text-amber-400 flex items-center gap-1">
-                        <span>Side A: {pctA}%</span>
-                        <span className="text-slate-400 font-normal">({fight.post_a.backers_count} backers)</span>
-                      </span>
-                      <span className="text-cyan-400 flex items-center gap-1">
-                        <span className="text-slate-400 font-normal">({fight.post_b.backers_count} backers)</span>
-                        <span>Side B: {pctB}%</span>
-                      </span>
-                    </div>
-
-                    <div className="h-4 rounded-full bg-black/60 p-0.5 border border-white/10 flex overflow-hidden shadow-inner">
-                      <div
-                        style={{ width: `${pctA}%` }}
-                        className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-l-full transition-all duration-500"
-                      />
-                      <div
-                        style={{ width: `${pctB}%` }}
-                        className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 rounded-r-full transition-all duration-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Side A vs Side B Stance Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    {/* Side A */}
-                    <div className="p-5 rounded-2xl glass-card border border-amber-500/40 relative flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold text-xs">
-                            Rank #{fight.post_a.rank}
+                  return (
+                    <div
+                      key={fight.id}
+                      className="px-4 sm:px-6 py-5 transition-colors duration-200 hover:bg-white/[0.03]"
+                    >
+                      {/* Fight meta */}
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="chip text-down">
+                            <Swords className="w-3 h-3" />
+                            <span className="tnum">{fight.lead_changes_24h}</span> lead changes · 24h
                           </span>
-                          <span className="text-base font-black font-mono text-amber-400">
-                            {formatUSD(fight.post_a.display_score)}
+                          <span className="chip text-steel">
+                            Battle for rank #{Math.min(fight.post_a.rank || 1, fight.post_b.rank || 2)}
                           </span>
                         </div>
 
-                        <Link
-                          href={`/p/${fight.post_a.slug}`}
-                          className="font-bold text-sm sm:text-base text-white hover:text-amber-300 line-clamp-2 block mb-1"
-                        >
-                          {fight.post_a.title}
-                        </Link>
-                        <div className="text-xs text-slate-400 flex items-center gap-2 mb-4">
-                          <span>By {fight.post_a.author_display}</span>
-                          <span>•</span>
-                          <span className="text-cyan-300 font-mono">{fight.post_a.backers_count} backers</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="led led-down" aria-hidden />
+                          <span className="micro-label text-ink-3">Live</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 pt-3 border-t border-white/10">
-                        <HoldToLikeButton
-                          postId={fight.post_a.id}
-                          initialLikes={fight.post_a.like_units}
-                          onLikeExecuted={fetchFights}
-                          onInsufficientFunds={() => setIsTopUpOpen(true)}
-                        />
-                        <button
-                          onClick={() => handleBoostPost(fight.post_a)}
-                          className="flex-1 btn-glass-gold py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <Zap className="w-3.5 h-3.5" />
-                          <span>Back Side A</span>
-                        </button>
+                      {/* Tug-of-war strength meter */}
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="micro-label text-up tnum">Side A · {pctA}%</span>
+                          <span className="micro-label text-down tnum">{pctB}% · Side B</span>
+                        </div>
+
+                        <div className="mt-1.5 flex h-2 rounded-md sunken overflow-hidden">
+                          <div
+                            style={{ width: `${pctA}%` }}
+                            className="h-full bg-up/75 transition-all duration-500"
+                          />
+                          <div
+                            style={{ width: `${pctB}%` }}
+                            className="h-full bg-down/75 transition-all duration-500"
+                          />
+                        </div>
+
+                        <div className="mt-1.5 flex items-center justify-between gap-3 text-meta text-ink-3">
+                          <span className="tnum">{fight.post_a.backers_count} backers</span>
+                          <span className="tnum">{fight.post_b.backers_count} backers</span>
+                        </div>
+                      </div>
+
+                      {/* Side A vs Side B */}
+                      <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+                        {/* Side A */}
+                        <div className="relative pl-4">
+                          <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-up" />
+
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="chip text-up">Rank #{fight.post_a.rank}</span>
+                            <span
+                              className={`metric text-lg tnum leading-none ${
+                                aLeads ? 'text-gold-text' : 'text-ink'
+                              }`}
+                            >
+                              {formatUSD(fight.post_a.display_score)}
+                            </span>
+                          </div>
+
+                          <Link
+                            href={`/p/${fight.post_a.slug}`}
+                            className="mt-2 block font-semibold text-[15px] text-ink hover:text-gold-text transition-colors line-clamp-2 underline-offset-4 hover:underline"
+                          >
+                            {fight.post_a.title}
+                          </Link>
+
+                          <div className="mt-1 flex items-center gap-2 text-meta text-ink-3 flex-wrap">
+                            <span className="text-ink-2 font-medium">{fight.post_a.author_display}</span>
+                            <span aria-hidden className="text-ink-3/50">·</span>
+                            <span className="tnum">{fight.post_a.backers_count} backers</span>
+                          </div>
+
+                          <div className="mt-3 flex items-center gap-2 pt-3 border-t border-line">
+                            <HoldToLikeButton
+                              postId={fight.post_a.id}
+                              initialLikes={fight.post_a.like_units}
+                              onLikeExecuted={fetchFights}
+                              onInsufficientFunds={() => setIsTopUpOpen(true)}
+                            />
+                            <button
+                              onClick={() => handleBoostPost(fight.post_a)}
+                              className="btn btn-ghost btn-xs flex-1 text-up hover:border-up/40"
+                            >
+                              <Zap className="w-3.5 h-3.5" />
+                              <span>Back Side A</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Side B */}
+                        <div className="relative pl-4">
+                          <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-down" />
+
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="chip text-down">Rank #{fight.post_b.rank}</span>
+                            <span
+                              className={`metric text-lg tnum leading-none ${
+                                aLeads ? 'text-ink' : 'text-gold-text'
+                              }`}
+                            >
+                              {formatUSD(fight.post_b.display_score)}
+                            </span>
+                          </div>
+
+                          <Link
+                            href={`/p/${fight.post_b.slug}`}
+                            className="mt-2 block font-semibold text-[15px] text-ink hover:text-gold-text transition-colors line-clamp-2 underline-offset-4 hover:underline"
+                          >
+                            {fight.post_b.title}
+                          </Link>
+
+                          <div className="mt-1 flex items-center gap-2 text-meta text-ink-3 flex-wrap">
+                            <span className="text-ink-2 font-medium">{fight.post_b.author_display}</span>
+                            <span aria-hidden className="text-ink-3/50">·</span>
+                            <span className="tnum">{fight.post_b.backers_count} backers</span>
+                          </div>
+
+                          <div className="mt-3 flex items-center gap-2 pt-3 border-t border-line">
+                            <HoldToLikeButton
+                              postId={fight.post_b.id}
+                              initialLikes={fight.post_b.like_units}
+                              onLikeExecuted={fetchFights}
+                              onInsufficientFunds={() => setIsTopUpOpen(true)}
+                            />
+                            <button
+                              onClick={() => handleBoostPost(fight.post_b)}
+                              className="btn btn-ghost btn-xs flex-1 text-down hover:border-down/40"
+                            >
+                              <Zap className="w-3.5 h-3.5" />
+                              <span>Back Side B</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-
-                    {/* Side B */}
-                    <div className="p-5 rounded-2xl glass-card border border-cyan-500/40 relative flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold text-xs">
-                            Rank #{fight.post_b.rank}
-                          </span>
-                          <span className="text-base font-black font-mono text-cyan-400">
-                            {formatUSD(fight.post_b.display_score)}
-                          </span>
-                        </div>
-
-                        <Link
-                          href={`/p/${fight.post_b.slug}`}
-                          className="font-bold text-sm sm:text-base text-white hover:text-cyan-300 line-clamp-2 block mb-1"
-                        >
-                          {fight.post_b.title}
-                        </Link>
-                        <div className="text-xs text-slate-400 flex items-center gap-2 mb-4">
-                          <span>By {fight.post_b.author_display}</span>
-                          <span>•</span>
-                          <span className="text-cyan-300 font-mono">{fight.post_b.backers_count} backers</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 pt-3 border-t border-white/10">
-                        <HoldToLikeButton
-                          postId={fight.post_b.id}
-                          initialLikes={fight.post_b.like_units}
-                          onLikeExecuted={fetchFights}
-                          onInsufficientFunds={() => setIsTopUpOpen(true)}
-                        />
-                        <button
-                          onClick={() => handleBoostPost(fight.post_b)}
-                          className="flex-1 btn-glass-cyan py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <Zap className="w-3.5 h-3.5" />
-                          <span>Back Side B</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="glass-panel p-12 rounded-3xl text-center border border-white/10 max-w-xl mx-auto">
-            <Swords className="w-10 h-10 text-rose-400 mx-auto mb-3 opacity-60" />
-            <h3 className="text-lg font-bold text-white">No Active Fights Declared</h3>
-            <p className="text-xs text-slate-400 mt-2">
-              Launch a rebuttal to any opinion on the board to initiate a head-to-head fight pair!
-            </p>
-            <Link href="/" className="mt-5 inline-block btn-glass-gold px-5 py-2.5 rounded-xl text-xs font-bold">
-              Explore Arena Board
-            </Link>
-          </div>
-        )}
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="panel rounded-card p-12 text-center max-w-xl mx-auto animate-rise">
+              <Swords className="w-8 h-8 text-ink-3 mx-auto mb-3" aria-hidden />
+              <h2 className="text-xl font-bold tracking-tight text-ink">No active fights declared</h2>
+              <p className="text-dense text-ink-3 mt-2 max-w-[46ch] mx-auto leading-relaxed">
+                Launch a rebuttal to any opinion on the board to initiate a head-to-head fight pair.
+              </p>
+              <Link href="/" className="btn btn-gold mt-6 inline-flex">
+                Explore the arena board
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
 
       <BoostDrawer

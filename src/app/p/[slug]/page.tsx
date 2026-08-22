@@ -19,7 +19,6 @@ import {
   Clock,
   ShieldCheck,
   ArrowLeft,
-  Flame,
   Swords,
   Lock,
   Megaphone,
@@ -92,12 +91,12 @@ export default function PostDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#060709] text-white flex flex-col">
+      <div className="min-h-screen text-ink flex flex-col">
         <Navbar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex items-center gap-3 text-amber-400 font-mono text-sm">
-            <span className="w-4 h-4 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-            <span>Retrieving permanent ledger record...</span>
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="flex items-center gap-3">
+            <span className="led led-gold" aria-hidden />
+            <span className="kicker">Retrieving permanent ledger record</span>
           </div>
         </div>
       </div>
@@ -106,335 +105,361 @@ export default function PostDetailPage() {
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-[#060709] text-white flex flex-col">
+      <div className="min-h-screen text-ink flex flex-col">
         <Navbar />
-        <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <h2 className="text-xl font-bold text-white">Opinion Not Found</h2>
-          <p className="text-xs text-slate-400 mt-1">This permanent URL does not exist or was removed.</p>
-          <Link href="/" className="mt-4 btn-glass-gold px-4 py-2 rounded-xl text-xs font-bold">
-            Back to Arena Board
-          </Link>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="panel rounded-card px-8 py-10 text-center max-w-md w-full animate-rise">
+            <div className="kicker">Ledger lookup</div>
+            <h2 className="text-xl font-bold tracking-tight text-ink mt-2">Opinion Not Found</h2>
+            <p className="text-meta text-ink-3 mt-2">
+              This permanent URL does not exist or was removed.
+            </p>
+            <Link href="/" className="btn btn-ghost btn-sm mt-5">
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Arena Board</span>
+            </Link>
+          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#060709] text-white flex flex-col relative overflow-x-hidden">
-      <div className="orb-glow-gold top-20 left-1/3 -translate-x-1/2 opacity-50" />
-      <div className="orb-glow-cyan top-40 right-1/4 opacity-40" />
+  const isRank1 = post.rank === 1;
 
+  return (
+    <div className="min-h-screen text-ink flex flex-col relative overflow-x-hidden">
       <Navbar />
 
-      <div className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        {/* Back Link */}
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white font-medium mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Arena Board</span>
-        </Link>
+      <div className="relative flex-1 w-full">
+        <div className="orb orb-gold -top-48 left-1/4 -translate-x-1/2 opacity-70" aria-hidden />
 
-        {/* Post Hero Card */}
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/20 shadow-2xl relative overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
-            {/* Rank and Author */}
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-mono font-black shadow-lg ${
-                  post.rank === 1
-                    ? 'bg-gradient-to-b from-amber-400 to-amber-600 text-black shadow-amber-400/30'
-                    : 'glass-segmented text-white text-lg'
-                }`}
-              >
-                {post.rank === 1 && <Trophy className="w-4 h-4 text-black" />}
-                <span className="text-lg">#{post.rank || '—'}</span>
-              </div>
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
+          {/* Back Link */}
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-meta text-ink-3 hover:text-ink font-medium mb-6 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Arena Board</span>
+          </Link>
 
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    {post.author_display}
-                  </span>
-
-                  {post.kind === 'demand' && (
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold font-mono flex items-center gap-1">
-                      <Megaphone className="w-3.5 h-3.5 text-amber-400" />
-                      Demand: @{post.demand_target || 'Brand'}
-                    </span>
-                  )}
-
-                  <span className="text-xs text-slate-400 font-mono">
-                    {timeAgo(post.created_at)}
-                  </span>
-                </div>
-                <div className="text-[11px] text-purple-400 font-mono mt-1 flex items-center gap-1">
-                  <Lock className="w-3 h-3" />
-                  <span>Immutable Public Record</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <HoldToLikeButton
-                postId={post.id}
-                initialLikes={post.like_units}
-                onLikeExecuted={fetchPost}
-                onInsufficientFunds={() => setIsTopUpOpen(true)}
-              />
-
-              <button
-                onClick={() => setIsCounterOpen(true)}
-                className="px-3.5 py-2 rounded-xl glass-card border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center gap-1.5 hover:border-rose-500/80 cursor-pointer"
-              >
-                <Swords className="w-3.5 h-3.5 text-rose-400" />
-                <span>Counter This</span>
-              </button>
-
-              <button
-                onClick={() => setIsShareOpen(true)}
-                className="btn-glass-dark px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-              >
-                <Share2 className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Flex Card</span>
-              </button>
-
-              <button
-                onClick={() => setIsBoostOpen(true)}
-                className="btn-glass-gold px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-lg"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span>Boost</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Statement & Body Content */}
-          <div className="my-6">
-            <h1 className="text-2xl sm:text-4xl font-extrabold text-white leading-tight">
-              {post.title}
-            </h1>
-
-            {/* Linked External Post Reference (§4) */}
-            {post.source_url && (
-              <div className="mt-4 p-4 rounded-2xl glass-card border border-purple-500/30 bg-purple-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
-                    <Megaphone className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-purple-300 uppercase font-mono font-bold block">
-                      Linked External Post ({post.source_platform?.toUpperCase() || 'EXTERNAL'})
-                    </span>
-                    <span className="text-xs text-slate-300 font-mono line-clamp-1">
-                      {post.source_url}
-                    </span>
-                  </div>
-                </div>
-
-                <a
-                  href={post.source_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-glass-dark px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 text-purple-300 hover:text-white shrink-0"
+          {/* Post Hero Slab */}
+          <div className="panel rounded-card p-5 sm:p-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-line">
+              {/* Rank and Author */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className={`w-14 h-14 rounded-control flex flex-col items-center justify-center gap-0.5 shrink-0 ${
+                    isRank1
+                      ? 'bg-gold/15 text-gold-text ring-1 ring-gold/35 shadow-[0_0_26px_-6px_rgb(var(--gold)/0.6)]'
+                      : 'sunken text-ink'
+                  }`}
                 >
-                  <span>View Original Post</span>
-                  <Share2 className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            )}
-
-            {post.body && (
-              <div className="mt-4 p-5 rounded-2xl glass-card text-sm sm:text-base text-slate-200 leading-relaxed whitespace-pre-wrap">
-                {post.body}
-              </div>
-            )}
-          </div>
-
-          {/* Official Brand Response Section (§9) */}
-          {post.brand_response ? (
-            <div className="my-6 p-6 rounded-3xl bg-emerald-950/30 border border-emerald-500/40 shadow-xl">
-              <div className="flex items-center justify-between pb-3 border-b border-emerald-500/20 mb-3">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                  <span className="font-bold text-sm text-emerald-300">
-                    Official On-the-Record Brand Response
-                  </span>
+                  {isRank1 && <Trophy className="w-3.5 h-3.5" aria-hidden />}
+                  <span className="metric text-lg leading-none">#{post.rank || '—'}</span>
                 </div>
-                <span className="text-xs font-mono text-emerald-400/80">
-                  By {post.brand_response.author_display}
-                </span>
-              </div>
-              <h3 className="text-base font-bold text-white mb-2">{post.brand_response.title}</h3>
-              <p className="text-sm text-slate-300 leading-relaxed">{post.brand_response.body}</p>
-            </div>
-          ) : post.kind === 'demand' && (
-            <div className="my-6 p-4 rounded-2xl glass-segmented border border-white/10 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-slate-300">
-                <Building2 className="w-4 h-4 text-cyan-400" />
-                <span>Represent {post.demand_target || 'this company'}? Answer this consumer mandate on the public record.</span>
-              </div>
-              <button
-                onClick={() => setIsResponding(true)}
-                className="btn-glass-cyan px-3 py-1.5 rounded-xl font-bold cursor-pointer"
-              >
-                Official Response
-              </button>
-            </div>
-          )}
 
-          {/* If Brand is responding */}
-          {isResponding && (
-            <form onSubmit={handleBrandRespond} className="my-6 p-6 rounded-3xl glass-card border border-cyan-500/40 space-y-4">
-              <h3 className="text-sm font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-2">
-                <Building2 className="w-4 h-4" />
-                <span>Publish Official Brand Statement</span>
-              </h3>
-              <div>
-                <label className="text-xs text-slate-300 block mb-1">Response Headline</label>
-                <input
-                  type="text"
-                  required
-                  value={respTitle}
-                  onChange={(e) => setRespTitle(e.target.value)}
-                  placeholder="e.g. Official Update: Batch Testing Approved"
-                  className="w-full px-4 py-2 rounded-xl glass-card border border-white/10 text-xs text-white"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-slate-300 block mb-1">Official Response Message</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={respBody}
-                  onChange={(e) => setRespBody(e.target.value)}
-                  placeholder="Explain your company's official stance..."
-                  className="w-full px-4 py-2 rounded-xl glass-card border border-white/10 text-xs text-white resize-none"
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsResponding(false)}
-                  className="btn-glass-dark px-3 py-1.5 rounded-xl text-xs font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-glass-cyan px-4 py-1.5 rounded-xl text-xs font-bold cursor-pointer"
-                >
-                  Publish to Permanent Ledger
-                </button>
-              </div>
-            </form>
-          )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="chip text-steel">
+                      <ShieldCheck className="w-3 h-3" />
+                      {post.author_display}
+                    </span>
 
-          {/* Dual Metrics Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 border-t border-white/10">
-            <div className="glass-card p-3 rounded-2xl">
-              <div className="text-[10px] text-slate-400 uppercase font-mono">Current Decayed Score</div>
-              <div className="text-xl font-black font-mono text-amber-400 mt-0.5 tabular-nums">
-                {formatScore(post.display_score)}
-              </div>
-            </div>
-
-            <div className="glass-card p-3 rounded-2xl">
-              <div className="text-[10px] text-slate-400 uppercase font-mono">Total Distinct Backers</div>
-              <div className="text-xl font-black font-mono text-cyan-400 mt-0.5 tabular-nums">
-                {post.backers_count.toLocaleString()}
-              </div>
-            </div>
-
-            <div className="glass-card p-3 rounded-2xl">
-              <div className="text-[10px] text-slate-400 uppercase font-mono">Penny Likes (1¢)</div>
-              <div className="text-xl font-black font-mono text-rose-400 mt-0.5 tabular-nums">
-                {post.like_units.toLocaleString()}
-              </div>
-            </div>
-
-            <div className="glass-card p-3 rounded-2xl">
-              <div className="text-[10px] text-slate-400 uppercase font-mono">Gross Backing Raised</div>
-              <div className="text-xl font-black font-mono text-white mt-0.5 tabular-nums">
-                {formatCents(post.total_raised_cents)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 2-Column Section: Crowd Backers & Interaction Ledger */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-          <div className="glass-panel p-6 rounded-3xl border border-white/10 shadow-xl">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
-              <Users className="w-4 h-4 text-cyan-400" />
-              <span>Penny Army Backers ({backers.length})</span>
-            </h3>
-
-            {backers.length > 0 ? (
-              <div className="space-y-2.5">
-                {backers.map((backer: any, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-3 rounded-xl glass-card text-xs"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white text-[11px]">
-                        {(backer.name || 'A').substring(0, 1).toUpperCase()}
-                      </div>
-                      <div>
-                        <span className="font-semibold text-white block">{backer.name || 'Anonymous Backer'}</span>
-                        <span className="text-[10px] text-slate-400">{backer.boostCount || 1} contribution(s)</span>
-                      </div>
-                    </div>
-
-                    <div className="font-mono font-bold text-amber-300">
-                      {formatCents(backer.totalCents || 100)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-400 py-6 text-center">Be the first to back this opinion with 1¢!</p>
-            )}
-          </div>
-
-          <div className="glass-panel p-6 rounded-3xl border border-white/10 shadow-xl">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
-              <Clock className="w-4 h-4 text-amber-400" />
-              <span>Immutable Ledger Timeline</span>
-            </h3>
-
-            {interactions.length > 0 ? (
-              <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-                {interactions.map((i: any) => (
-                  <div
-                    key={i.id}
-                    className="p-3 rounded-xl glass-card text-xs flex items-center justify-between font-mono"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-emerald-400 font-bold">
-                          +{formatCents(i.amount_cents)}
-                        </span>
-                        <span className="text-slate-400 font-sans">by {i.payer_display}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-500">{timeAgo(i.settled_at || i.created_at)}</span>
-                    </div>
-
-                    {i.achieved_rank && (
-                      <span className="px-2 py-0.5 rounded bg-white/10 text-slate-300 text-[10px] font-bold">
-                        Achieved #{i.achieved_rank}
+                    {post.kind === 'demand' && (
+                      <span className="chip text-gold-text">
+                        <Megaphone className="w-3 h-3" />
+                        Demand @{post.demand_target || 'Brand'}
                       </span>
                     )}
+
+                    <span className="text-meta text-ink-3 tnum">{timeAgo(post.created_at)}</span>
                   </div>
-                ))}
+
+                  <div className="micro-label text-ink-3 mt-1.5 flex items-center gap-1.5">
+                    <Lock className="w-3 h-3" aria-hidden />
+                    <span>Immutable public record</span>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <p className="text-xs text-slate-400 py-6 text-center">No interactions recorded yet.</p>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
+                <HoldToLikeButton
+                  postId={post.id}
+                  initialLikes={post.like_units}
+                  onLikeExecuted={fetchPost}
+                  onInsufficientFunds={() => setIsTopUpOpen(true)}
+                />
+
+                <button
+                  onClick={() => setIsCounterOpen(true)}
+                  className="btn btn-ghost btn-sm text-down hover:border-down/40"
+                  title="Launch counter-opinion rebuttal"
+                >
+                  <Swords className="w-3.5 h-3.5" />
+                  <span>Counter This</span>
+                </button>
+
+                <button
+                  onClick={() => setIsShareOpen(true)}
+                  className="btn btn-ghost btn-sm"
+                  title="Generate a shareable flex card"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Flex Card</span>
+                </button>
+
+                <button onClick={() => setIsBoostOpen(true)} className="btn btn-gold btn-sm">
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Boost</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Statement & Body Content */}
+            <div className="my-6">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-ink leading-tight">
+                {post.title}
+              </h1>
+
+              {/* Linked External Post Reference (§4) */}
+              {post.source_url && (
+                <div className="mt-5 sunken rounded-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-md bg-white/[0.05] border border-line flex items-center justify-center text-ink-3 shrink-0">
+                      <Megaphone className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="micro-label text-ink-3 block">
+                        Linked external post ({post.source_platform?.toUpperCase() || 'EXTERNAL'})
+                      </span>
+                      <span className="text-meta text-ink-2 line-clamp-1 break-all">
+                        {post.source_url}
+                      </span>
+                    </div>
+                  </div>
+
+                  <a
+                    href={post.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-ghost btn-xs shrink-0"
+                  >
+                    <span>View Original Post</span>
+                    <Share2 className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+
+              {post.body && (
+                <div className="mt-5 sunken rounded-card p-5 text-[15px] text-ink-2 leading-relaxed whitespace-pre-wrap">
+                  {post.body}
+                </div>
+              )}
+            </div>
+
+            {/* Official Brand Response Section (§9) */}
+            {post.brand_response ? (
+              <div className="my-6 card rounded-card p-5 sm:p-6 bg-up/[0.04]">
+                <div className="flex items-center justify-between gap-3 flex-wrap pb-3 border-b border-line mb-3">
+                  <span className="chip text-up">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Official on-the-record brand response
+                  </span>
+                  <span className="text-meta text-ink-3">
+                    By {post.brand_response.author_display}
+                  </span>
+                </div>
+                <h3 className="text-sm font-semibold text-ink mb-2">{post.brand_response.title}</h3>
+                <p className="text-[15px] text-ink-2 leading-relaxed">{post.brand_response.body}</p>
+              </div>
+            ) : post.kind === 'demand' && (
+              <div className="my-6 sunken rounded-card px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-meta text-ink-2">
+                  <Building2 className="w-4 h-4 text-ink-3" aria-hidden />
+                  <span>
+                    Represent {post.demand_target || 'this company'}? Answer this consumer mandate on
+                    the public record.
+                  </span>
+                </div>
+                <button onClick={() => setIsResponding(true)} className="btn btn-ghost btn-xs shrink-0">
+                  Official Response
+                </button>
+              </div>
             )}
+
+            {/* If Brand is responding */}
+            {isResponding && (
+              <form
+                onSubmit={handleBrandRespond}
+                className="my-6 card rounded-card p-5 sm:p-6 space-y-4 animate-rise"
+              >
+                <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-ink-3" aria-hidden />
+                  <span>Publish official brand statement</span>
+                </h3>
+
+                <div>
+                  <label className="kicker block mb-1.5">Response headline</label>
+                  <input
+                    type="text"
+                    required
+                    value={respTitle}
+                    onChange={(e) => setRespTitle(e.target.value)}
+                    placeholder="e.g. Official Update: Batch Testing Approved"
+                    className="field"
+                  />
+                </div>
+
+                <div>
+                  <label className="kicker block mb-1.5">Official response message</label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={respBody}
+                    onChange={(e) => setRespBody(e.target.value)}
+                    placeholder="Explain your company's official stance..."
+                    className="field resize-none"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsResponding(false)}
+                    className="btn btn-ghost btn-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-ghost btn-sm text-gold-text hover:border-gold/40">
+                    Publish to Permanent Ledger
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Dual Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 border-t border-line">
+              <div className="card rounded-card p-3.5">
+                <div className="micro-label text-ink-3">Current decayed score</div>
+                <div className="metric text-2xl text-gold-text mt-1 tnum">
+                  {formatScore(post.display_score)}
+                </div>
+              </div>
+
+              <div className="card rounded-card p-3.5">
+                <div className="micro-label text-ink-3">Total distinct backers</div>
+                <div className="metric text-2xl text-ink mt-1 tnum">
+                  {post.backers_count.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="card rounded-card p-3.5">
+                <div className="micro-label text-ink-3">Penny likes (1¢)</div>
+                <div className="metric text-2xl text-ink mt-1 tnum">
+                  {post.like_units.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="card rounded-card p-3.5">
+                <div className="micro-label text-ink-3">Gross backing raised</div>
+                <div className="metric text-2xl text-ink mt-1 tnum">
+                  {formatCents(post.total_raised_cents)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2-Column Section: Crowd Backers & Interaction Ledger */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+            <div className="panel rounded-card overflow-hidden">
+              <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-line">
+                <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+                  <Users className="w-4 h-4 text-ink-3" aria-hidden />
+                  <span>Penny Army backers</span>
+                </h2>
+                <span className="chip text-steel tnum">{backers.length}</span>
+              </div>
+
+              {backers.length > 0 ? (
+                <div className="divide-y divide-line">
+                  {backers.map((backer: any, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-white/[0.04]"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-7 h-7 rounded-full sunken flex items-center justify-center text-micro font-semibold text-ink-2 shrink-0">
+                          {(backer.name || 'A').substring(0, 1).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="block text-dense font-semibold text-ink truncate">
+                            {backer.name || 'Anonymous Backer'}
+                          </span>
+                          <span className="micro-label text-ink-3">
+                            {backer.boostCount || 1} contribution(s)
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="text-dense font-semibold text-gold-text tnum shrink-0">
+                        {formatCents(backer.totalCents || 100)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="px-5 py-10 text-center text-meta text-ink-3">
+                  Be the first to back this opinion with 1¢.
+                </p>
+              )}
+            </div>
+
+            <div className="panel rounded-card overflow-hidden">
+              <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-line">
+                <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-ink-3" aria-hidden />
+                  <span>Immutable ledger timeline</span>
+                </h2>
+                <span className="chip text-steel tnum">{interactions.length}</span>
+              </div>
+
+              {interactions.length > 0 ? (
+                <div className="divide-y divide-line max-h-80 overflow-y-auto">
+                  {interactions.map((i: any) => (
+                    <div
+                      key={i.id}
+                      className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-white/[0.04]"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-dense font-semibold text-up tnum">
+                            +{formatCents(i.amount_cents)}
+                          </span>
+                          <span className="text-meta text-ink-3 truncate">
+                            by {i.payer_display}
+                          </span>
+                        </div>
+                        <span className="micro-label text-ink-3">
+                          {timeAgo(i.settled_at || i.created_at)}
+                        </span>
+                      </div>
+
+                      {i.achieved_rank && (
+                        <span className="chip text-gold-text shrink-0">
+                          Achieved #{i.achieved_rank}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="px-5 py-10 text-center text-meta text-ink-3">
+                  No interactions recorded yet.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>

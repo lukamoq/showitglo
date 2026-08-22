@@ -7,8 +7,22 @@ import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
 import { CreateWarModal } from '@/components/wars/CreateWarModal';
 import { DebateView, RankedPostView } from '@/lib/types';
 import { formatUSD, formatCents } from '@/lib/utils';
-import { Swords, Users, ShieldCheck, Zap, Heart, Trophy, Sparkles, ArrowRight, MessageSquare, Plus } from 'lucide-react';
+import { Swords, ShieldCheck, Sparkles, ArrowRight, MessageSquare, Plus } from 'lucide-react';
 import Link from 'next/link';
+
+/**
+ * Sides of a fight read as up vs down first, then fall back to the neutral
+ * semantic tones. Token classes only — never raw palette colors.
+ */
+const SIDE_TONES = [
+  { text: 'text-up', bar: 'bg-up' },
+  { text: 'text-down', bar: 'bg-down' },
+  { text: 'text-info', bar: 'bg-info' },
+  { text: 'text-steel', bar: 'bg-steel' },
+  { text: 'text-gold-text', bar: 'bg-gold' },
+] as const;
+
+const sideTone = (index: number) => SIDE_TONES[index % SIDE_TONES.length];
 
 export default function DebatesPage() {
   const [debates, setDebates] = useState<DebateView[]>([]);
@@ -37,171 +51,199 @@ export default function DebatesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#060709] text-white flex flex-col relative overflow-x-hidden">
-      <div className="orb-glow-gold top-10 left-1/4 opacity-40" />
-      <div className="orb-glow-cyan top-30 right-1/4 opacity-40" />
-
+    <div className="min-h-screen text-ink flex flex-col relative overflow-x-hidden">
       <Navbar />
 
-      <div className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        {/* Header */}
-        <div className="text-center max-w-3xl mx-auto mb-10">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-bold uppercase tracking-wider mb-3">
-            <Swords className="w-4 h-4 text-cyan-400" />
-            <span>Multi-Faction War & Debate Arena</span>
-          </div>
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-            Standing Arenas & LLM Wars
-          </h1>
-          <p className="mt-3 text-sm text-slate-300">
-            Share your uncensored opinion, vote for free, or power-boost your favorite faction to lead the global scoreboard!
-          </p>
+      <div className="relative flex-1 w-full">
+        <div className="orb orb-gold -top-52 -left-32 opacity-70" aria-hidden />
 
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <button
-              onClick={() => setIsCreateWarOpen(true)}
-              className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 via-purple-600 to-cyan-600 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-lg hover:opacity-90 transition-opacity"
-            >
+        <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
+          {/* Header */}
+          <div className="max-w-3xl mb-10">
+            <div className="kicker-gold flex items-center gap-2">
+              <Swords className="w-3.5 h-3.5" aria-hidden />
+              <span>Multi-faction war &amp; debate arena</span>
+            </div>
+
+            <h1 className="text-3xl font-bold tracking-tight text-ink mt-3">
+              Standing Arenas &amp; LLM Wars
+            </h1>
+
+            <p className="mt-3 text-[15px] text-ink-2 leading-relaxed max-w-[62ch]">
+              Share your uncensored opinion, vote for free, or power-boost your favorite faction to
+              lead the global scoreboard.
+            </p>
+
+            <button onClick={() => setIsCreateWarOpen(true)} className="btn btn-gold mt-6">
               <Plus className="w-4 h-4" />
               <span>Launch a New War (Free)</span>
             </button>
           </div>
-        </div>
 
-        {/* Debates Grid */}
-        <div className="space-y-10">
-          {debates.map((debate) => {
-            return (
-              <div
-                key={debate.id}
-                className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/20 shadow-2xl relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900/60 to-slate-950"
-              >
-                {/* Header info */}
-                <div className="flex items-center justify-between pb-4 border-b border-white/10 text-xs flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono font-bold uppercase text-[10px]">
-                      {debate.sides.length}-Way Multi-Faction War
-                    </span>
-                    {debate.sponsor_label && (
-                      <span className="text-emerald-400 font-mono flex items-center gap-1">
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        {debate.sponsor_label}
+          {/* Debate Slabs */}
+          <div className="space-y-6">
+            {debates.map((debate) => {
+              return (
+                <div key={debate.id} className="panel rounded-card overflow-hidden">
+                  {/* Header info */}
+                  <div className="flex items-center justify-between gap-3 flex-wrap px-5 sm:px-6 py-3 border-b border-line">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="chip text-steel">
+                        {debate.sides.length}-way multi-faction war
                       </span>
-                    )}
-                  </div>
+                      {debate.sponsor_label && (
+                        <span className="chip text-up">
+                          <ShieldCheck className="w-3 h-3" />
+                          {debate.sponsor_label}
+                        </span>
+                      )}
+                    </div>
 
-                  <span className="font-mono text-slate-400">
-                    Total Backing: <strong className="text-white">{formatCents(debate.total_money_cents)}</strong> •{' '}
-                    <strong className="text-cyan-400">{debate.total_backers.toLocaleString()}</strong> backers •{' '}
-                    <strong className="text-purple-300">{(debate.total_free_votes || 0).toLocaleString()}</strong> free opinions
-                  </span>
-                </div>
-
-                {/* Debate Question */}
-                <div className="my-6">
-                  <Link
-                    href={`/d/${debate.slug}`}
-                    className="text-xl sm:text-3xl font-extrabold text-white hover:text-amber-300 transition-colors block"
-                  >
-                    {debate.question}
-                  </Link>
-                </div>
-
-                {/* Multi-Segment Tug-of-War Strength Meter */}
-                <div className="my-6">
-                  <div className="flex items-center justify-between text-xs font-mono font-bold mb-2 flex-wrap gap-2">
-                    {debate.sides.map((side) => (
-                      <span key={side.side_key} style={{ color: side.color || '#fbbf24' }} className="flex items-center gap-1">
-                        <span>{side.label.split(' ')[0]}: {side.percentage}%</span>
-                        <span className="text-slate-400 font-normal">({side.backers_count} backers)</span>
+                    <div className="flex items-center gap-2 flex-wrap text-meta text-ink-3">
+                      <span>
+                        Total backing{' '}
+                        <strong className="font-semibold text-gold-text tnum">
+                          {formatCents(debate.total_money_cents)}
+                        </strong>
                       </span>
-                    ))}
+                      <span aria-hidden className="text-ink-3/50">
+                        ·
+                      </span>
+                      <span className="tnum">
+                        <strong className="font-semibold text-ink-2">
+                          {debate.total_backers.toLocaleString()}
+                        </strong>{' '}
+                        backers
+                      </span>
+                      <span aria-hidden className="text-ink-3/50">
+                        ·
+                      </span>
+                      <span className="tnum">
+                        <strong className="font-semibold text-ink-2">
+                          {(debate.total_free_votes || 0).toLocaleString()}
+                        </strong>{' '}
+                        free opinions
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Segmented bar */}
-                  <div className="h-4 rounded-full bg-black/60 p-0.5 border border-white/10 flex overflow-hidden shadow-inner gap-0.5">
-                    {debate.sides.map((side) => (
-                      <div
-                        key={side.side_key}
-                        style={{
-                          width: `${side.percentage}%`,
-                          backgroundColor: side.color || '#fbbf24',
-                        }}
-                        className="h-full transition-all duration-700 first:rounded-l-full last:rounded-r-full opacity-90 hover:opacity-100"
-                        title={`${side.label}: ${side.percentage}%`}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Faction Cards Breakdown */}
-                <div className={`grid grid-cols-1 ${debate.sides.length === 2 ? 'sm:grid-cols-2' : debate.sides.length === 4 ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'} gap-4 my-6`}>
-                  {debate.sides.map((side) => (
-                    <div
-                      key={side.side_key}
-                      className="p-5 rounded-2xl glass-card border border-white/10 flex flex-col justify-between space-y-4 relative overflow-hidden"
+                  {/* Question + tug-of-war meter */}
+                  <div className="px-5 sm:px-6 py-5">
+                    <Link
+                      href={`/d/${debate.slug}`}
+                      className="block text-xl sm:text-2xl font-bold tracking-tight text-ink hover:text-gold-text transition-colors underline-offset-4 hover:underline"
                     >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
+                      {debate.question}
+                    </Link>
+
+                    <div className="mt-5">
+                      <div className="flex items-center gap-x-4 gap-y-1.5 flex-wrap mb-2">
+                        {debate.sides.map((side, idx) => (
                           <span
-                            style={{ backgroundColor: `${side.color}20`, borderColor: `${side.color}40`, color: side.color }}
-                            className="px-2 py-0.5 rounded-md border text-[10px] font-mono font-bold uppercase"
+                            key={side.side_key}
+                            className={`micro-label flex items-center gap-1.5 ${sideTone(idx).text}`}
                           >
-                            {side.percentage}% Share
+                            <span className="tnum">
+                              {side.label.split(' ')[0]} {side.percentage}%
+                            </span>
+                            <span className="text-ink-3 tnum">({side.backers_count} backers)</span>
                           </span>
-                          <span className="text-xs font-mono font-bold text-white">
-                            {formatCents(side.total_cents)}
-                          </span>
-                        </div>
-
-                        <h3 className="font-bold text-sm text-white line-clamp-2">
-                          {side.label}
-                        </h3>
-
-                        {side.description && (
-                          <p className="text-xs text-slate-400 line-clamp-2">
-                            {side.description}
-                          </p>
-                        )}
+                        ))}
                       </div>
 
-                      {/* Community Opinions count & Action */}
-                      <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-                        <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
-                          <MessageSquare className="w-3 h-3 text-cyan-400" />
-                          <span>{side.opinions.length + side.free_votes_count} opinions</span>
-                        </span>
-
-                        <Link
-                          href={`/d/${debate.slug}?side=${side.side_key}`}
-                          className="text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1"
-                        >
-                          <span>Defend</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </Link>
+                      {/* Segmented bar */}
+                      <div className="h-2.5 rounded-control sunken flex overflow-hidden gap-px p-px">
+                        {debate.sides.map((side, idx) => (
+                          <div
+                            key={side.side_key}
+                            style={{ width: `${side.percentage}%` }}
+                            className={`h-full rounded-sm transition-all duration-700 opacity-80 hover:opacity-100 ${
+                              sideTone(idx).bar
+                            }`}
+                            title={`${side.label}: ${side.percentage}%`}
+                          />
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
-
-                {/* Footer Action */}
-                <div className="pt-4 border-t border-white/10 flex items-center justify-between flex-wrap gap-4">
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Free community voting & optional conviction boosts active.</span>
                   </div>
 
-                  <Link
-                    href={`/d/${debate.slug}`}
-                    className="btn-glass-gold px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-lg"
-                  >
-                    <span>Enter Debate & Post Opinion</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
+                  {/* Faction ledger */}
+                  <div className="border-t border-line divide-y divide-line">
+                    {debate.sides.map((side, idx) => {
+                      const tone = sideTone(idx);
+                      return (
+                        <div
+                          key={side.side_key}
+                          className="relative px-5 sm:px-6 py-3.5 transition-colors hover:bg-white/[0.04]"
+                        >
+                          <span
+                            aria-hidden
+                            className={`absolute left-0 top-0 bottom-0 w-[3px] ${tone.bar} opacity-70`}
+                          />
+
+                          <div className="flex flex-col lg:grid lg:grid-cols-[1fr_auto] gap-3 lg:gap-6 lg:items-center">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`chip ${tone.text} tnum`}>
+                                  {side.percentage}% share
+                                </span>
+                                <h3 className="text-dense font-semibold text-ink truncate">
+                                  {side.label}
+                                </h3>
+                              </div>
+
+                              {side.description && (
+                                <p className="mt-1 text-meta text-ink-3 line-clamp-2 max-w-[62ch]">
+                                  {side.description}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between lg:justify-end gap-4 shrink-0">
+                              <div className="lg:text-right">
+                                <div className="micro-label text-ink-3">Backed</div>
+                                <div className="metric text-base text-ink tnum leading-tight">
+                                  {formatCents(side.total_cents)}
+                                </div>
+                              </div>
+
+                              <span className="flex items-center gap-1.5 text-meta text-ink-3">
+                                <MessageSquare className="w-3.5 h-3.5" aria-hidden />
+                                <span className="tnum">
+                                  {side.opinions.length + side.free_votes_count} opinions
+                                </span>
+                              </span>
+
+                              <Link
+                                href={`/d/${debate.slug}?side=${side.side_key}`}
+                                className="btn btn-ghost btn-xs"
+                              >
+                                <span>Defend</span>
+                                <ArrowRight className="w-3 h-3" />
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Footer Action */}
+                  <div className="px-5 sm:px-6 py-4 border-t border-line flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-2 text-meta text-ink-3">
+                      <Sparkles className="w-3.5 h-3.5" aria-hidden />
+                      <span>Free community voting &amp; optional conviction boosts active.</span>
+                    </div>
+
+                    <Link href={`/d/${debate.slug}`} className="btn btn-ghost btn-sm">
+                      <span>Enter Debate &amp; Post Opinion</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 

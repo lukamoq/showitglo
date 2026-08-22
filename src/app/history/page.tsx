@@ -3,9 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BoardSnapshot } from '@/lib/types';
-import { formatUSD, formatCents } from '@/lib/utils';
-import { History, Calendar, Trophy, Sparkles, ArrowRight } from 'lucide-react';
-import Link from 'next/link';
+import { formatUSD } from '@/lib/utils';
+import { History, Calendar } from 'lucide-react';
 
 export default function HistoryPage() {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
@@ -50,111 +49,153 @@ export default function HistoryPage() {
   }, [selectedDate]);
 
   return (
-    <div className="min-h-screen bg-[#060709] text-white flex flex-col relative overflow-x-hidden">
-      <div className="orb-glow-cyan top-20 right-1/3 opacity-30" />
-
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden">
       <Navbar />
 
-      <div className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+      <div className="flex-1 w-full">
         {/* Header */}
-        <div className="text-center max-w-2xl mx-auto mb-8">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-xs font-bold uppercase tracking-wider mb-3">
-            <History className="w-4 h-4" />
-            <span>Time-Travel Archive</span>
-          </div>
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-            Permanent Board Playback
-          </h1>
-          <p className="mt-3 text-sm text-slate-300">
-            ShowItGlo never deletes ranking history. Scrub through time to view the exact state of the world&apos;s attention on any past date.
-          </p>
-        </div>
+        <div className="relative pt-10 pb-8 sm:pt-14 sm:pb-10">
+          <div className="orb orb-gold -top-64 -left-40 opacity-70" aria-hidden />
 
-        {/* Date Selector Scrubber */}
-        <div className="glass-panel p-4 rounded-2xl border border-white/10 mb-8 max-w-xl mx-auto">
-          <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-slate-300">
-            <Calendar className="w-4 h-4 text-cyan-400" />
-            <span>Select Snapshot Date:</span>
-          </div>
+          <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="kicker kicker-gold flex items-center gap-2">
+              <History className="w-4 h-4" aria-hidden />
+              <span>Time-travel archive</span>
+            </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 font-mono text-xs">
-            {availableDates.map((date) => (
-              <button
-                key={date}
-                onClick={() => setSelectedDate(date)}
-                className={`px-3 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                  selectedDate === date
-                    ? 'bg-cyan-500 text-black font-bold shadow-lg shadow-cyan-500/20'
-                    : 'glass-card text-slate-300 hover:text-white'
-                }`}
-              >
-                {date}
-              </button>
-            ))}
+            <h1 className="text-3xl font-bold tracking-tight text-ink mt-3">
+              Permanent Board Playback
+            </h1>
+
+            <p className="text-[15px] text-ink-2 leading-relaxed max-w-[62ch] mt-3">
+              ShowItGlo never deletes ranking history. Scrub through time to view the exact state of
+              the world&apos;s attention on any past date.
+            </p>
           </div>
         </div>
 
-        {/* Snapshot Table */}
-        {snapshot ? (
-          <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/10 shadow-2xl">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white">
-                  Board Snapshot: <strong className="text-cyan-400 font-mono">{snapshot.snapshot_date}</strong>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-16 space-y-6">
+          {/* Date scrubber */}
+          <div className="panel rounded-card p-4">
+            <div className="flex items-center gap-2 mb-2.5 text-ink-3">
+              <Calendar className="w-4 h-4" aria-hidden />
+              <span className="kicker">Snapshot date</span>
+            </div>
+
+            <div className="overflow-x-auto pb-1">
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="skeleton h-8 w-24 rounded-control" />
+                  ))}
+                </div>
+              ) : (
+                <div className="seg">
+                  {availableDates.map((date) => (
+                    <button
+                      key={date}
+                      onClick={() => setSelectedDate(date)}
+                      className={`seg-item tnum ${selectedDate === date ? 'seg-item-active' : ''}`}
+                    >
+                      {date}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Snapshot ledger */}
+          {snapshot ? (
+            <div className="panel rounded-card overflow-hidden animate-rise">
+              <div className="px-4 sm:px-6 py-3 border-b border-line flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="kicker">Board snapshot</span>
+                  <span className="chip text-gold-text tnum">{snapshot.snapshot_date}</span>
+                </div>
+                <span className="text-meta text-ink-3 tnum">
+                  {snapshot.rankings.length} posts archived
                 </span>
               </div>
-              <span className="text-xs text-slate-400 font-mono">
-                {snapshot.rankings.length} posts archived
-              </span>
-            </div>
 
-            <div className="space-y-3">
-              {snapshot.rankings.map((p) => (
-                <div
-                  key={p.rank}
-                  className="glass-card p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                >
-                  <div className="flex items-center gap-3">
+              <div className="divide-y divide-line">
+                {snapshot.rankings.map((p) => {
+                  const isRank1 = p.rank === 1;
+                  const isRank2 = p.rank === 2;
+                  const isRank3 = p.rank === 3;
+
+                  const spine = isRank1
+                    ? 'bg-gold'
+                    : isRank2
+                    ? 'bg-white/25'
+                    : isRank3
+                    ? 'bg-gold-deep/60'
+                    : null;
+
+                  return (
                     <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-mono font-black ${
-                        p.rank === 1
-                          ? 'bg-amber-500 text-black'
-                          : p.rank === 2
-                          ? 'bg-slate-300 text-black'
-                          : p.rank === 3
-                          ? 'bg-amber-700 text-white'
-                          : 'glass-segmented text-slate-300'
+                      key={p.rank}
+                      className={`relative px-4 sm:px-5 py-4 transition-colors duration-200 hover:bg-white/[0.04] ${
+                        isRank1 ? 'bg-gold/[0.045]' : ''
                       }`}
                     >
-                      #{p.rank}
-                    </div>
+                      {spine && (
+                        <span
+                          aria-hidden
+                          className={`absolute left-0 top-0 bottom-0 w-[3px] ${spine}`}
+                        />
+                      )}
 
-                    <div>
-                      <span className="font-bold text-sm text-white block">
-                        {p.title}
-                      </span>
-                      <span className="text-slate-400">By {p.author_display}</span>
-                    </div>
-                  </div>
+                      <div className="flex flex-col lg:grid lg:grid-cols-[3.5rem_1fr_auto] gap-3 lg:gap-4 lg:items-center">
+                        {/* Rank */}
+                        <div className="flex items-center lg:justify-end shrink-0">
+                          <span
+                            className={`metric text-xl leading-none tnum ${
+                              isRank1 ? 'text-gold-text' : p.rank <= 3 ? 'text-ink' : 'text-ink-3'
+                            }`}
+                          >
+                            {p.rank}
+                          </span>
+                        </div>
 
-                  <div className="flex items-center gap-4 shrink-0 sm:text-right">
-                    <div>
-                      <div className="text-[10px] text-slate-400 uppercase font-mono">Decayed Score on {snapshot.snapshot_date}</div>
-                      <div className="text-base font-black font-mono text-amber-400 tabular-nums">
-                        {formatUSD(p.score_display)}
+                        {/* Statement */}
+                        <div className="min-w-0">
+                          <span className="font-semibold text-[15px] sm:text-base text-ink block line-clamp-1">
+                            {p.title}
+                          </span>
+                          <span className="text-meta text-ink-3">
+                            <span className="text-ink-2 font-medium">{p.author_display}</span>
+                          </span>
+                        </div>
+
+                        {/* Archived score */}
+                        <div className="shrink-0 text-left lg:text-right pt-2 lg:pt-0 border-t lg:border-t-0 border-line">
+                          <div className="micro-label text-ink-3">
+                            Decayed score · {snapshot.snapshot_date}
+                          </div>
+                          <div
+                            className={`metric text-lg sm:text-xl leading-tight tnum ${
+                              isRank1 ? 'text-gold-text' : 'text-ink'
+                            }`}
+                          >
+                            {formatUSD(p.score_display)}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="glass-panel p-12 rounded-3xl text-center border border-white/10 max-w-md mx-auto">
-            <Sparkles className="w-8 h-8 text-cyan-400 mx-auto mb-2 opacity-60" />
-            <p className="text-xs text-slate-400">Select a date to view historical snapshots.</p>
-          </div>
-        )}
+          ) : (
+            <div className="panel rounded-card p-12 text-center max-w-md mx-auto">
+              <History className="w-8 h-8 text-ink-3 mx-auto mb-3" aria-hidden />
+              <p className="text-dense text-ink-3">
+                Select a date to replay the board as it stood.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
