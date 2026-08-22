@@ -1,33 +1,38 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/db';
-import '@/lib/db/seed';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
-  const debates = db.getDebates();
-  const aggregatedWars = debates.map((d) => ({
-    debate_id: d.id,
-    slug: d.slug,
-    question: d.question,
-    total_money_raised_cents: d.total_money_cents,
-    total_distinct_backers: d.total_backers,
-    total_free_votes: d.total_free_votes || 0,
-    faction_breakdown: d.sides.map((s) => ({
-      faction: s.label,
-      side_key: s.side_key,
-      percentage: s.percentage,
-      total_cents: s.total_cents,
-      backers_count: s.backers_count,
-      free_votes_count: s.free_votes_count,
-      community_opinions_count: s.opinions.length,
-    })),
-    k_anonymity_verified: true,
-  }));
+import { getInsightsDebates } from '@/lib/db/store';
+import { getInsightsKMin } from '@/lib/env';
+import { authenticateInsights } from '@/lib/insightsAuth';
+import { failure } from '@/lib/http';
 
-  return NextResponse.json({
-    k_anonymity_floor: 100,
-    dataset: 'multi_faction_war_votes_v1',
-    data_policy: 'ZERO_USER_DATA_SOLD',
-    guarantee: 'Only aggregated vote counts and faction market share percentages are exposed. Zero user accounts, emails, or personal identifiers are ever sold or accessible via API.',
-    data: aggregatedWars,
-  });
+export const dynamic = 'force-dynamic';
+
+/**
+ * GET /api/v1/insights/debates
+ *
+ * Aggregate faction market share per war.
+ *
+ * The previous handler stamped `k_anonymity_verified: true` onto every row
+ * regardless of how few people were behind it. Here the flag is a consequence
+ * of the query: wars below the anonymity floor are never returned, so any row
+ * present has genuinely cleared it.
+ */
+export async function GET(request: NextRequest) {
+  const auth = await authenticateInsights(request);
+  if (!auth.ok) return auth.response;
+
+  try {
+    const data = await getInsightsDebates();
+
+    return NextResponse.json({
+      k_anonymity_floor: getInsightsKMin(),
+      dataset: 'multi_faction_war_votes_v1',
+      data_policy: 'ZERO_USER_DATA_SOLD',
+      guarantee:
+        'Only aggregated vote counts and faction market share percentages are exposed. Zero user accounts, emails, or personal identifiers are ever sold or accessible via API.',
+      data,
+    });
+  } catch (err) {
+    return failure('insights.debates.failed', err);
+  }
 }

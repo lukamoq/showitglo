@@ -1,5 +1,16 @@
 import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+// tailwind-merge cannot see tailwind.config.ts, so the custom fontSize keys
+// (text-micro / text-meta / text-dense) get misclassified as text COLORS and
+// silently dropped whenever a text-ink-* class appears in the same cn() call.
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": ["text-micro", "text-meta", "text-dense"],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

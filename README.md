@@ -1,112 +1,205 @@
-# ShowItGlo — Let the World Decide What Opinion is Real
+# ShowItGlo
 
 [![Next.js](https://img.shields.io/badge/Next.js-15.5-black?style=flat&logo=next.js)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat&logo=postgresql)](https://www.postgresql.org/)
-[![Stripe](https://img.shields.io/badge/Stripe-Apple%20Pay%20%2B%20Link-635BFF?style=flat&logo=stripe)](https://stripe.com/)
-[![License](https://img.shields.io/badge/License-Proprietary-gold.svg)](file:///Users/lukapetrovic/Desktop/showitglo/LICENSE)
+[![Stripe](https://img.shields.io/badge/Stripe-Payment%20Element-635BFF?style=flat&logo=stripe)](https://stripe.com/)
 
-> **"Always wanted to share your opinion but you didn't get the stage or got censored? We don't! Let the world decide what opinion is real."**
+> **"Always wanted to share your opinion but you didn't get the stage or got
+> censored? We don't! Let the world decide what opinion is real."**
 
-ShowItGlo is a high-density, real-time public opinion and consumer demand arena. Every like costs **1¢**, and every conviction boost costs **10¢**, turning passive internet noise into truthful, money-weighted public mandates that cannot be shadowbanned or silenced.
-
----
-
-## 🌟 Key Features
-
-1. **Uncensored Public Arena**:
-   - **Say It Out Loud**: Broadcast unfiltered stances directly to the permanent global board.
-   - **Link a Post**: Attach uncensored opinions to any external post or article (X, YouTube, Reddit, TikTok, News).
-   - **Demand Change**: Rally thousands of paying consumers to force brands to publicly answer on the record.
-
-2. **The Great LLM Showdown & Multi-Faction Wars**:
-   - Multi-option ($N$-way) debates featuring **Claude Opus 5**, **ChatGPT (GPT-5.6 Sol & o3-pro)**, **Gemini 3.7 Flash**, and **Grok 4.6**.
-   - Free $0.00 community opinion stream + optional financial conviction boosting ($0.10, $1.00, $10.00).
-
-3. **Live Visitor Telemetry Engine**:
-   - Real-time active presence tracking (`🟢 Live In Arena`) powered by anonymous sliding-window session heartbeats.
-
-4. **Zero User Data Sold Guarantee**:
-   - ShowItGlo **only sells aggregate vote distributions and macro brand demand statistics** via the Insights API.
-   - Zero emails, zero personal user accounts, and zero IP logs are ever sold or accessible via API ($k \ge 100$ anonymity guarantee).
-
-5. **Production Payment Rails**:
-   - Native **Apple Pay** on Safari with Face ID / Touch ID.
-   - 1-Click **Stripe Link** and Credit/Debit Cards with automated webhook top-up verification.
-
-6. **Legal & Compliance**:
-   - Swiss Federal Act on Data Protection (FADP) and EU GDPR compliant.
-   - Swiss Impressum registered for **MomentumQ GmbH**, Zürich, Switzerland.
+A money-weighted public opinion board. A like costs 1¢, a boost 10¢, and every
+cent moves a post up a leaderboard whose ranking is invariant to when you look
+at it. Paying for attention is the whole point: it makes the ranking expensive
+to fake.
 
 ---
 
-## 🚀 Quick Start (Local Development)
+## How it works
 
-### 1. Clone & Install
+**Identity.** There is no signup. The first request mints an anonymous user row
+and returns a signed, HttpOnly `sig_uid` cookie. Identity comes from that cookie
+and from nothing else — a `user_id` in a request body is ignored. Wiping cookies
+starts a new identity (and abandons the old wallet).
+
+**Money.** A closed-loop wallet, topped up through Stripe. All spending is
+server-priced: the client picks a *product* (like / boost / super / a quoted
+power boost), never an amount. Every debit is one Postgres transaction holding
+a row lock on the wallet and the post, appended to a `wallet_ledger` that always
+sums to the balance. An `Idempotency-Key` header makes a retried request replay
+instead of charging twice.
+
+**Ranking.** A boost of `A` cents at time `t` is stored as
+`A · 2^((t − T₀)/H)` with a 7-day half-life. Because the exponent depends only
+on when the boost happened, the *ordering* of posts never changes with the
+evaluation time — the leaderboard cannot silently reshuffle between two page
+loads. `npm run test:math` proves that property against the shipped code.
+
+**Presence.** "Live in arena" counts rows in `presence_heartbeats` seen in the
+last 90 seconds, keyed by an HMAC of the session id. The table stores no user
+id, no IP and nothing that links back to a person.
+
+**Insights (paid API).** `GET /api/v1/insights/demands` and
+`/api/v1/insights/debates` return money-weighted aggregates. They require an
+`Authorization: Bearer sig_live_…` key (self-serve at `/insights`) or the
+operator key — they are not public. Keys are stored as sha256 hashes; the token
+itself is shown once at creation and is not recoverable.
+
+---
+
+## Data policy — what is and is not true
+
+- **k-anonymity by suppression, not by rounding.** A demand group with fewer
+  than `INSIGHTS_K_MIN` (default **100**) distinct backers is **omitted from the
+  response entirely**. Counts that are returned are the real counts — nothing is
+  floored, padded or inflated to reach the threshold.
+- **No personal data is sold or exposed through the API.** The Insights
+  endpoints return aggregates only: no aliases, no payment profiles, no
+  per-user rows.
+- **No email addresses are collected.** Anonymous users get a synthetic
+  `anon_<uuid>@anon.showitglo.local` placeholder to satisfy a NOT NULL column.
+  Nothing is ever sent to it.
+- **IP addresses are used transiently for rate limiting and are never sold.**
+  `X-Forwarded-For` is read in memory to throttle posting and boosting bursts.
+  It is not written to the database — the `audit_logs.ip_hash` column exists and
+  is always `NULL`.
+- **Erasure is self-service.** `POST /api/v1/me/erase` with `{"confirm": true}`
+  tombstones the calling session's own account, anonymises its display names and
+  removes its posts. Financial rows are retained as books of record with their
+  human-readable fields anonymised.
+
+---
+
+## Quick start
+
+Requires Node 20+ and PostgreSQL 16. (`npm run test:math` additionally needs
+Node **22.18+ / 23.6+** — it imports `src/lib/engine/*.ts` directly rather than
+testing a copy of the formulas.)
+
 ```bash
-git clone https://github.com/your-username/showitglo.git
-cd showitglo
 npm install
+createdb showitglo_dev
+cp .env.example .env.local          # then fill in the values below
+npm run db:init                     # applies scripts/schema.sql (idempotent)
+npm run db:seed                     # optional: a small, honest demo dataset
+npm run dev                         # http://localhost:3000
 ```
 
-### 2. Configure Environment Variables
-Copy `.env.example` to `.env.local`:
-```bash
-cp .env.example .env.local
-```
-Fill in your Stripe and database credentials:
+The minimum `.env.local` for local development:
+
 ```env
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+DATABASE_URL=postgresql://postgres@localhost:5432/showitglo_dev
+SESSION_SECRET=<openssl rand -hex 32>
+ADMIN_SECRET_KEY=<openssl rand -hex 24>
+```
+
+Everything else is optional locally. Without Stripe keys the payment endpoints
+answer `503 PAYMENTS_NOT_CONFIGURED` — deliberately, so nothing hands the client
+a fake `client_secret`. To exercise the real flow, add a Stripe **test-mode**
+key set and forward webhooks:
+
+```env
 STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/showitglo
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...          # printed by `stripe listen`
 ```
 
-### 3. Run Development Server
 ```bash
-npm run dev
+stripe listen --forward-to localhost:3000/api/v1/webhooks/stripe
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+See `.env.example` for the full annotated list — it is kept in lockstep with
+`src/lib/env.ts`, and `npm run verify:prod` fails if the two drift.
+
+### Seeds
+
+| command | what it writes |
+|---|---|
+| `npm run db:seed` | `scripts/seed-dev.mjs` — three obviously-fake demo users and six posts that start at **zero**, then real backing driven through the store so wallets, ledgers and post totals reconcile. No invented numbers, no real brands. |
+| `npm run db:seed:wars` | `scripts/seed-wars.mjs` — a larger demo dataset of debates and counter-wars. It writes post totals and backer rows **directly**, so the wallet ledger does not reconcile against them. Local demo only; never point it at production. |
 
 ---
 
-## 🛳️ Production Deployment
+## Tests
 
-### Option A: Vercel (Recommended)
-1. Push repository to GitHub.
-2. Import project into [Vercel](https://vercel.com).
-3. Set environment variables (`DATABASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`).
-4. Deploy!
-
-### Option B: Docker Container
 ```bash
-# Build and start container
-docker-compose up -d --build
+npm run test:math          # scoring engine, against src/lib/engine
+npm run test:integration   # money-path regression suite (needs Postgres)
+npm run verify:prod        # config, schema, forbidden patterns
+npm run test:all           # all three
 ```
 
+`test:integration` is the one that matters. It creates a throwaway
+`showitglo_test` database, applies the schema, boots two `next dev` servers from
+an isolated copy of the tree, and asserts over HTTP that:
+
+- a tampered session cookie yields a **new** identity, never someone else's;
+- a `user_id` in a request body debits nobody;
+- no endpoint can mint credit — with Stripe unconfigured, top-up returns 503 and
+  the wallet stays at zero;
+- 10 parallel 100¢ likes against a 100¢ wallet settle **exactly once**, and the
+  balance never goes negative;
+- a replayed `Idempotency-Key` debits once and reports `replayed: true`;
+- an unsigned, mis-signed or stale-timestamped webhook is rejected, a correctly
+  signed one credits once, and a replay credits nothing;
+- admin routes answer 401 without a key and **503 when no key is configured** —
+  they fail closed, never open;
+- a demand group with 3 backers is absent from the Insights response.
+
+It cleans up after itself and is safe to re-run. Set `TEST_KEEP=1` to keep the
+database and server logs for debugging.
+
 ---
 
-## 🍎 Apple Pay Web Verification
+## Deployment
 
-Apple requires hosting the domain association certificate at `/.well-known/apple-developer-merchantid-domain-association`.
+Target is **Vercel** (serverless) + Neon Postgres + Stripe.
 
-1. In Stripe Dashboard 👉 **Settings > Payment Methods > Apple Pay**.
-2. Click **Add new domain** and enter your production domain (e.g. `showitglo.com`).
-3. Click **Verify** (the certificate is pre-configured in `public/.well-known/apple-developer-merchantid-domain-association` and served automatically).
+1. Set the seven required environment variables (see `.env.example`) plus
+   `STRICT_ENV_CHECK=true`, so a missing secret aborts the deploy instead of
+   silently degrading a feature.
+2. Deploy.
+3. Apply the schema once: `DATABASE_URL="<neon unpooled url>" node scripts/init-db.mjs`.
+   Re-run it only when `scripts/schema.sql` changes.
+4. `curl https://<domain>/api/health` — `services.database.schema` must be
+   `ready` and `services.payments.ready` must be `true`.
+
+**Every remaining human step — Stripe key rotation, Apple Pay domain
+verification, the custom domain, Neon backups, the live-mode $1 test — is
+written up with values and verification commands in
+[`PRODUCTION_MANUAL_STEPS.md`](./PRODUCTION_MANUAL_STEPS.md). Read it before
+launch.**
+
+> `Dockerfile` and `docker-compose.yml` are present but **unverified**. The
+> Dockerfile sets `DOCKER_BUILD=1` so `next.config.ts` emits the standalone
+> output it copies, but `docker-compose.yml` still passes no `SESSION_SECRET`
+> and no `ADMIN_SECRET_KEY` (so admin routes answer 503 and, under
+> `NODE_ENV=production`, every session request throws) and still runs a Redis
+> service that no code touches. Vercel is the supported path.
 
 ---
 
-## 🔒 Zero User Data Policy
+## Apple Pay
 
-- **Debates API**: `GET /api/v1/insights/debates`
-- **Demands API**: `GET /api/v1/insights/demands`
+Stripe requires the domain association file at
+`/.well-known/apple-developer-merchantid-domain-association`. It is served two
+ways — from `public/.well-known/` and from a route handler at
+`src/app/.well-known/apple-developer-merchantid-domain-association/route.ts` —
+because a dot-directory under `public/` is not reliably shipped by every builder.
 
-Both endpoints strictly enforce aggregate macro statistics with a guaranteed $k \ge 100$ anonymity floor.
+The file **is** committed, but it was generated on 2024-05-08 and this
+repository cannot confirm it matches the production domain. Before verifying,
+download a fresh file from **Stripe Dashboard → Settings → Payments → Payment
+methods → Apple Pay → Add a new domain**, replace the committed one, redeploy,
+and only then press **Verify**. Details in `PRODUCTION_MANUAL_STEPS.md` §B4.
 
 ---
 
-## ⚖️ Corporate & Legal
+## Corporate & legal
 
-- **Operator**: MomentumQ GmbH, Leutschenbachstrasse 95, 8050 Zürich, Switzerland (UID: CHE-222.957.350).
-- **Impressum**: [`/impressum`](file:///Users/lukapetrovic/Desktop/showitglo/src/app/impressum/page.tsx)
-- **Privacy Policy**: [`/privacy`](file:///Users/lukapetrovic/Desktop/showitglo/src/app/privacy/page.tsx)
+- **Operator:** MomentumQ GmbH, Leutschenbachstrasse 95, 8050 Zürich,
+  Switzerland (UID: CHE-222.957.350)
+- **Impressum:** [`/impressum`](src/app/impressum/page.tsx)
+- **Privacy policy:** [`/privacy`](src/app/privacy/page.tsx)
+
+Proprietary. All rights reserved.

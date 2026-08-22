@@ -1,5 +1,8 @@
 version: '3.8'
 
+# Local/self-hosted stack. SESSION_SECRET and ADMIN_SECRET_KEY have no safe
+# defaults — compose refuses to start without them:
+#   SESSION_SECRET=$(openssl rand -hex 32) ADMIN_SECRET_KEY=$(openssl rand -hex 24) docker-compose up -d --build
 services:
   # 1. ShowItGlo Next.js App
   app:
@@ -11,16 +14,15 @@ services:
       - '3000:3000'
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_APP_URL=http://localhost:3000
-      - DATABASE_URL=postgresql://showitglo:secretpassword123@postgres:5432/showitglo?sslmode=disable
-      - REDIS_URL=redis://redis:6379
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - DATABASE_URL=postgresql://showitglo:${POSTGRES_PASSWORD:-showitglo_local_dev}@postgres:5432/showitglo?sslmode=disable
+      - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET is required (openssl rand -hex 32)}
+      - ADMIN_SECRET_KEY=${ADMIN_SECRET_KEY:?ADMIN_SECRET_KEY is required (openssl rand -hex 24)}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   # 2. PostgreSQL 16
@@ -29,7 +31,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: showitglo
-      POSTGRES_PASSWORD: secretpassword123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-showitglo_local_dev}
       POSTGRES_DB: showitglo
     ports:
       - '5432:5432'
@@ -42,20 +44,5 @@ services:
       timeout: 5s
       retries: 5
 
-  # 3. Redis 7
-  redis:
-    image: redis:7-alpine
-    restart: always
-    ports:
-      - '6379:6379'
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
 volumes:
   pgdata:
-  redisdata:

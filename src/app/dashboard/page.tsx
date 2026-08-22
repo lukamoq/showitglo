@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { BoostDrawer } from '@/components/boost/BoostDrawer';
 import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
-import { User, Wallet, WalletLedgerEntry, RankedPostView, Notification } from '@/lib/types';
-import { formatUSD, formatCents, timeAgo } from '@/lib/utils';
+import { SecureWalletCard } from '@/components/wallet/SecureWalletCard';
+import { RecoverWalletDialog } from '@/components/wallet/RecoverWalletDialog';
+import { User, RankedPostView, Notification } from '@/lib/types';
+import { formatCents, timeAgo } from '@/lib/utils';
 import {
   LayoutDashboard,
   Trophy,
@@ -14,54 +16,131 @@ import {
   CreditCard,
   Plus,
   AlertCircle,
+  RefreshCw,
   Trash2,
+  CheckCircle2,
 } from 'lucide-react';
+import { apiGet, apiPost, errorText } from '@/components/system/api';
+import { useWallet } from '@/components/system/useWallet';
+
+interface DashboardResponse {
+  user: User;
+  posts: RankedPostView[];
+  reclaim_alerts: Notification[];
+  metrics: {
+    total_posts: number;
+    total_boosts: number;
+    total_spent_cents: number;
+    active_top_rank: number | null;
+  };
+}
+
+const EMPTY_METRICS = {
+  total_posts: 0,
+  total_boosts: 0,
+  total_spent_cents: 0,
+  active_top_rank: null as number | null,
+};
+
+const ERASE_CONFIRM_WORD = 'DELETE';
+
+/**
+ * The outcomes /api/v1/auth/confirm and /api/v1/auth/magic redirect back with.
+ * Both endpoints are opened from an inbox, so the result has to be legible on
+ * the page the browser lands on rather than in a JSON body nobody sees.
+ */
+const LINK_BANNERS: Record<string, { tone: 'good' | 'bad'; message: string }> = {
+  '1': { tone: 'good', message: 'Email confirmed. Your wallet can now be recovered with it, and receipts will go there.' },
+  conflict: {
+    tone: 'bad',
+    message: 'That address already secures another wallet, so nothing was linked. Use “Recover wallet” to get into that one.',
+  },
+  invalid: {
+    tone: 'bad',
+    message: 'That confirmation link is invalid, expired or already used. Request a new one below.',
+  },
+};
+
+const RECOVER_BANNERS: Record<string, { tone: 'good' | 'bad'; message: string }> = {
+  '1': { tone: 'good', message: 'Welcome back — this browser now holds your recovered wallet session.' },
+  invalid: {
+    tone: 'bad',
+    message: 'That recovery link is invalid, expired or already used. Ask for a fresh one.',
+  },
+};
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
-  const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [ledger, setLedger] = useState<WalletLedgerEntry[]>([]);
   const [posts, setPosts] = useState<RankedPostView[]>([]);
   const [reclaimAlerts, setReclaimAlerts] = useState<Notification[]>([]);
-  const [metrics, setMetrics] = useState({
-    total_posts: 0,
-    total_boosts: 0,
-    total_spent_cents: 0,
-    active_top_rank: null as number | null,
-  });
+  const [metrics, setMetrics] = useState(EMPTY_METRICS);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [selectedPostForBoost, setSelectedPostForBoost] = useState<RankedPostView | null>(null);
   const [isBoostOpen, setIsBoostOpen] = useState(false);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+
+  const [isErasePanelOpen, setIsErasePanelOpen] = useState(false);
+  const [eraseConfirmText, setEraseConfirmText] = useState('');
+  const [eraseError, setEraseError] = useState<string | null>(null);
+  const [isErasing, setIsErasing] = useState(false);
   const [erasureDone, setErasureDone] = useState(false);
 
-  const fetchDashboard = async () => {
-    try {
-      const [resDash, resWallet] = await Promise.all([
-        fetch('/api/v1/me/dashboard'),
-        fetch('/api/v1/wallet?user_id=usr_marc'),
-      ]);
-      const dataDash = await resDash.json();
-      const dataWallet = await resWallet.json();
+  const [isRecoverOpen, setIsRecoverOpen] = useState(false);
+  const [authBanner, setAuthBanner] = useState<{ tone: 'good' | 'bad'; message: string } | null>(null);
 
-      if (dataDash.user) {
-        setUser(dataDash.user);
-        setPosts(dataDash.posts || []);
-        setReclaimAlerts(dataDash.reclaim_alerts || []);
-        setMetrics(dataDash.metrics || {});
-      }
-      if (dataWallet.wallet) {
-        setWallet(dataWallet.wallet);
-        setLedger(dataWallet.ledger || []);
-      }
-    } catch (err) {
-      console.error('Error fetching dashboard:', err);
+  const {
+    wallet,
+    ledger,
+    balanceCents,
+    hasReceiptEmail,
+    receiptEmailMasked,
+    isLoading: isWalletLoading,
+    refresh: refreshWallet,
+  } = useWallet();
+  const eraseInFlightRef = useRef(false);
+
+  /**
+   * Read from `window.location` rather than `useSearchParams` so the page
+   * needs no Suspense boundary, and strip the parameter afterwards: a
+   * `?recovered=1` left in the URL gets bookmarked and shared, and re-announces
+   * a recovery that happened days ago every time the page is opened.
+   */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linked = params.get('linked');
+    const recovered = params.get('recovered');
+
+    const banner = (linked && LINK_BANNERS[linked]) || (recovered && RECOVER_BANNERS[recovered]) || null;
+    if (!banner) return;
+
+    setAuthBanner(banner);
+    params.delete('linked');
+    params.delete('recovered');
+    const query = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+  }, []);
+
+  const fetchDashboard = useCallback(async () => {
+    const res = await apiGet<DashboardResponse>('/api/v1/me/dashboard');
+    setIsLoading(false);
+
+    if (!res.ok || !res.data?.user) {
+      setLoadError(errorText(res, 'Your terminal could not be loaded.'));
+      return;
     }
-  };
+
+    setLoadError(null);
+    setUser(res.data.user);
+    setPosts(res.data.posts || []);
+    setReclaimAlerts(res.data.reclaim_alerts || []);
+    setMetrics(res.data.metrics || EMPTY_METRICS);
+  }, []);
 
   useEffect(() => {
-    fetchDashboard();
-  }, []);
+    void fetchDashboard();
+  }, [fetchDashboard]);
 
   const handle1TapReclaim = (alert: Notification) => {
     const targetPost = posts.find((p) => p.id === alert.payload.post_id);
@@ -72,29 +151,33 @@ export default function DashboardPage() {
   };
 
   const handleGdprErasure = async () => {
-    if (!user) return;
-    if (!confirm('Are you sure? Per GDPR Right to Erasure, all your personal data will be anonymized and your authored opinions will be tombstoned.')) {
+    if (eraseInFlightRef.current) return;
+    if (eraseConfirmText.trim().toUpperCase() !== ERASE_CONFIRM_WORD) {
+      setEraseError(`Type ${ERASE_CONFIRM_WORD} to confirm.`);
       return;
     }
 
-    try {
-      const res = await fetch('/api/v1/me/erase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user.id }),
-      });
-      if (res.ok) {
-        setErasureDone(true);
-        fetchDashboard();
-      }
-    } catch (err) {
-      console.error('Error erasing account:', err);
+    eraseInFlightRef.current = true;
+    setIsErasing(true);
+    setEraseError(null);
+
+    const res = await apiPost('/api/v1/me/erase', { confirm: true });
+
+    eraseInFlightRef.current = false;
+    setIsErasing(false);
+
+    if (!res.ok) {
+      setEraseError(errorText(res, 'Your data could not be erased. Nothing was changed.'));
+      return;
     }
+
+    setErasureDone(true);
+    setIsErasePanelOpen(false);
   };
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-x-hidden">
-      <Navbar onBalanceUpdated={() => fetchDashboard()} />
+      <Navbar onBalanceUpdated={() => void refreshWallet()} />
 
       <div className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
         {/* Header & Wallet Banner */}
@@ -105,35 +188,145 @@ export default function DashboardPage() {
               <span>Combatant &amp; Creator Terminal</span>
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-ink mt-2">
-              {user?.alias || 'Marc (ShipFast)'}
+              {user?.alias || 'Anonymous'}
             </h1>
             <p className="text-meta text-ink-3 mt-1">
-              Verified Fighter · {user?.email}
+              {hasReceiptEmail
+                ? 'Anonymous session · recoverable with your linked email'
+                : 'Anonymous session · no account, no email required'}
             </p>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => setIsTopUpOpen(true)}
-              className="btn btn-gold btn-sm"
-            >
+            <button type="button" onClick={() => setIsTopUpOpen(true)} className="btn btn-gold btn-sm">
               <Plus className="w-3.5 h-3.5" />
-              <span>Refill Wallet</span>
+              <span>Add Funds</span>
             </button>
 
             <button
-              onClick={handleGdprErasure}
+              type="button"
+              onClick={() => {
+                setIsErasePanelOpen((open) => !open);
+                setEraseError(null);
+                setEraseConfirmText('');
+              }}
+              aria-expanded={isErasePanelOpen}
               className="btn btn-ghost btn-sm !text-down hover:border-down/40"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">GDPR Erasure</span>
+              <span className="hidden sm:inline">Erase my data</span>
             </button>
           </div>
         </div>
 
+        {authBanner && (
+          <div
+            role="status"
+            className={`mt-4 rounded-card p-4 text-dense animate-rise flex flex-wrap items-center justify-between gap-3 ${
+              authBanner.tone === 'good'
+                ? 'border border-up/30 bg-up/10 text-up'
+                : 'border border-down/30 bg-down/10 text-down'
+            }`}
+          >
+            <span className="flex items-start gap-2">
+              {authBanner.tone === 'good' ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+              ) : (
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+              )}
+              <span>{authBanner.message}</span>
+            </span>
+            <button type="button" onClick={() => setAuthBanner(null)} className="btn btn-ghost btn-xs">
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {loadError && (
+          <div className="mt-4 rounded-card border border-down/30 bg-down/10 p-4 text-dense text-down flex flex-wrap items-center justify-between gap-3">
+            <span role="alert">{loadError}</span>
+            <button type="button" onClick={() => void fetchDashboard()} className="btn btn-ghost btn-xs">
+              <RefreshCw className="w-3 h-3" />
+              <span>Retry</span>
+            </button>
+          </div>
+        )}
+
+        {/* Optional email link — the only place the product ever asks for one. */}
+        <div className="mt-6">
+          <SecureWalletCard
+            hasEmail={hasReceiptEmail}
+            maskedEmail={receiptEmailMasked}
+            isLoading={isWalletLoading}
+          />
+        </div>
+
+        {isErasePanelOpen && !erasureDone && (
+          <div className="mt-4 panel rounded-card p-5 animate-rise space-y-3">
+            <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-down" aria-hidden />
+              <span>Erase everything tied to this session</span>
+            </h2>
+            <p className="text-dense text-ink-2 leading-relaxed max-w-[70ch]">
+              Your alias is removed, your backings are anonymised, and the stances you authored are
+              tombstoned. This is irreversible, and any remaining wallet balance is not refunded by
+              this action.
+            </p>
+
+            <div>
+              <label htmlFor="erase-confirm" className="kicker block mb-1.5">
+                Type {ERASE_CONFIRM_WORD} to confirm
+              </label>
+              <input
+                id="erase-confirm"
+                type="text"
+                autoComplete="off"
+                value={eraseConfirmText}
+                onChange={(e) => {
+                  setEraseConfirmText(e.target.value);
+                  setEraseError(null);
+                }}
+                aria-describedby={eraseError ? 'erase-error' : undefined}
+                placeholder={ERASE_CONFIRM_WORD}
+                className="field max-w-xs"
+              />
+            </div>
+
+            {eraseError && (
+              <p id="erase-error" role="alert" className="text-dense text-down">
+                {eraseError}
+              </p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleGdprErasure()}
+                disabled={isErasing || eraseConfirmText.trim().toUpperCase() !== ERASE_CONFIRM_WORD}
+                className="btn btn-danger btn-sm"
+              >
+                {isErasing ? 'Erasing…' : 'Erase my data permanently'}
+              </button>
+              <button type="button" onClick={() => setIsErasePanelOpen(false)} className="btn btn-ghost btn-sm">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         {erasureDone && (
-          <div className="mt-4 rounded-card border border-up/30 bg-up/10 p-4 text-dense text-up animate-rise">
-            ✓ Account data successfully anonymized and content tombstoned under GDPR Article 17.
+          <div className="mt-4 rounded-card border border-up/30 bg-up/10 p-4 animate-rise space-y-3">
+            <p className="text-dense text-up flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+              <span>
+                Your data has been erased: alias removed, backings anonymised, authored stances
+                tombstoned.
+              </span>
+            </p>
+            <button type="button" onClick={() => window.location.reload()} className="btn btn-ghost btn-sm">
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Reload with a fresh session</span>
+            </button>
           </div>
         )}
 
@@ -163,12 +356,16 @@ export default function DashboardPage() {
                   </div>
 
                   <button
+                    type="button"
                     onClick={() => handle1TapReclaim(alert)}
                     className="btn btn-ghost btn-sm !text-gold-text hover:border-gold/40 shrink-0 self-start sm:self-auto"
                   >
                     <Zap className="w-3.5 h-3.5" />
                     <span className="tnum">
-                      1-Tap Reclaim #{alert.payload.old_rank} ({formatCents(alert.payload.reclaim_amount_cents || 1000)})
+                      Reclaim #{alert.payload.old_rank}
+                      {typeof alert.payload.reclaim_amount_cents === 'number'
+                        ? ` (${formatCents(alert.payload.reclaim_amount_cents)})`
+                        : ''}
                     </span>
                   </button>
                 </div>
@@ -182,7 +379,7 @@ export default function DashboardPage() {
           <div className="card rounded-card p-4">
             <div className="micro-label text-ink-3">Wallet Available</div>
             <div className="metric text-2xl text-gold-text tnum mt-1.5 leading-none">
-              {formatCents(wallet?.balance_cents || 0)}
+              {formatCents(balanceCents)}
             </div>
             <div className="text-meta text-ink-3 mt-1.5">Closed-loop balance</div>
           </div>
@@ -286,6 +483,7 @@ export default function DashboardPage() {
                         </Link>
 
                         <button
+                          type="button"
                           onClick={() => {
                             setSelectedPostForBoost(post);
                             setIsBoostOpen(true);
@@ -299,8 +497,30 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))
+              ) : isLoading ? (
+                <div className="space-y-2 p-4">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="skeleton h-12 w-full rounded-control" />
+                  ))}
+                </div>
               ) : (
-                <p className="text-dense text-ink-3 py-10 text-center">No ranked stances yet.</p>
+                <div className="py-10 text-center space-y-2">
+                  <p className="text-dense text-ink-3">No ranked stances yet.</p>
+                  {/* A visitor staring at an empty terminal may be looking at a
+                      NEW anonymous session rather than an empty old one —
+                      cleared cookies, another device. This is the way back. */}
+                  <p className="text-meta text-ink-3">
+                    Expected to see a wallet here?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setIsRecoverOpen(true)}
+                      className="text-gold-text underline underline-offset-4 hover:text-ink transition-colors"
+                    >
+                      Recover a wallet you secured with email
+                    </button>
+                    .
+                  </p>
+                </div>
               )}
             </div>
           </div>
@@ -363,21 +583,27 @@ export default function DashboardPage() {
         post={selectedPostForBoost}
         isOpen={isBoostOpen}
         onClose={() => setIsBoostOpen(false)}
-        onSuccess={() => fetchDashboard()}
+        onSuccess={() => {
+          void fetchDashboard();
+          void refreshWallet();
+        }}
       />
 
       <WalletTopUpModal
         isOpen={isTopUpOpen}
         onClose={() => {
           setIsTopUpOpen(false);
-          fetchDashboard();
+          void refreshWallet();
         }}
-        currentBalanceCents={wallet?.balance_cents || 0}
+        currentBalanceCents={balanceCents}
         onTopUpSuccess={() => {
-          fetchDashboard();
+          void refreshWallet();
+          void fetchDashboard();
           setIsTopUpOpen(false);
         }}
       />
+
+      <RecoverWalletDialog isOpen={isRecoverOpen} onClose={() => setIsRecoverOpen(false)} />
     </div>
   );
 }

@@ -7,12 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:math": "node scripts/test-engine.mjs",
     "db:init": "node scripts/init-db.mjs",
+    "db:seed": "node scripts/seed-dev.mjs",
+    "db:seed:wars": "node scripts/seed-wars.mjs",
+    "test:math": "node scripts/test-engine.mjs",
+    "test:integration": "node scripts/test-integration.mjs",
     "verify:prod": "node scripts/verify-production.mjs",
-    "test:all": "npm run test:math && npm run verify:prod"
+    "test:all": "npm run test:math && npm run test:integration && npm run verify:prod"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.8.2",
+    "@stripe/stripe-js": "^9.14.0",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",

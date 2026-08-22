@@ -1,16 +1,47 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { BoostDrawer } from '@/components/boost/BoostDrawer';
 import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
 import { DebateView, RankedPostView } from '@/lib/types';
-import { formatUSD, formatCents, timeAgo } from '@/lib/utils';
-import { Swords, ShieldCheck, Zap, ArrowLeft, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
+import { DEBATE_BACK_ALLOWED, type DebateBackTier } from '@/lib/pricing';
+import { formatCents } from '@/lib/utils';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  MessageSquare,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  Swords,
+  Zap,
+} from 'lucide-react';
 import { HoldToLikeButton } from '@/components/interactions/HoldToLikeButton';
 import confetti from 'canvas-confetti';
+import {
+  apiGet,
+  apiPost,
+  errorText,
+  insufficientFunds,
+  newIdempotencyKey,
+  recommendedTopUpCents,
+  useDisplayName,
+} from '@/components/system/api';
+import { DisplayNameField } from '@/components/system/DisplayNameField';
+import { useWallet } from '@/components/system/useWallet';
+
+const OPINION_MAX_LENGTH = 500;
+
+/** The only conviction chips the server will price. */
+const BACK_TIERS: Array<{ key: DebateBackTier; label: string }> = [
+  { key: 'boost', label: formatCents(DEBATE_BACK_ALLOWED.boost) },
+  { key: 'super', label: formatCents(DEBATE_BACK_ALLOWED.super) },
+  { key: 'mega', label: formatCents(DEBATE_BACK_ALLOWED.mega) },
+];
 
 /**
  * Sides of a fight read as up vs down first, then fall back to the neutral
@@ -36,79 +67,137 @@ export default function SingleDebatePage() {
   const [selectedPost, setSelectedPost] = useState<RankedPostView | null>(null);
   const [isBoostOpen, setIsBoostOpen] = useState(false);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+  const [topUpRecommendation, setTopUpRecommendation] = useState<number | undefined>(undefined);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Opinion Form State
   const [chosenSideKey, setChosenSideKey] = useState<string>('');
   const [opinionText, setOpinionText] = useState('');
-  const [authorName, setAuthorName] = useState('Marc (ShipFast)');
+  const [authorName, setAuthorName] = useDisplayName();
   const [isPaidConviction, setIsPaidConviction] = useState(false);
-  const [boostAmountCents, setBoostAmountCents] = useState(100); // $1.00
+  const [backTier, setBackTier] = useState<DebateBackTier>('boost');
   const [isSubmittingOpinion, setIsSubmittingOpinion] = useState(false);
   const [opinionSuccess, setOpinionSuccess] = useState(false);
+  const [opinionError, setOpinionError] = useState<string | null>(null);
+  const [opinionNotice, setOpinionNotice] = useState<string | null>(null);
 
-  const fetchDebate = async () => {
+  const { balanceCents, refresh: refreshWallet } = useWallet();
+  const inFlightRef = useRef(false);
+  /** Reused when retrying the same backing after a dropped response. */
+  const idempotencyKeyRef = useRef<string | null>(null);
+
+  const fetchDebate = useCallback(async () => {
     if (!slug) return;
-    try {
-      const res = await fetch(`/api/v1/debates/${slug}`);
-      const data = await res.json();
-      if (data.debate) {
-        setDebate(data.debate);
-        if (!chosenSideKey && data.debate.sides.length > 0) {
-          if (initialSide && data.debate.sides.some((s: any) => s.side_key === initialSide)) {
-            setChosenSideKey(initialSide);
-          } else {
-            setChosenSideKey(data.debate.sides[0].side_key);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error loading debate:', err);
+    const res = await apiGet<{ debate: DebateView }>(`/api/v1/debates/${slug}`);
+    setIsLoading(false);
+
+    if (!res.ok || !res.data?.debate) {
+      setLoadError(errorText(res, 'This debate could not be loaded.'));
+      return;
     }
-  };
+
+    setLoadError(null);
+    const loaded = res.data.debate;
+    setDebate(loaded);
+    setChosenSideKey((current) => {
+      if (current) return current;
+      if (initialSide && loaded.sides.some((s) => s.side_key === initialSide)) return initialSide;
+      return loaded.sides[0]?.side_key ?? '';
+    });
+  }, [slug, initialSide]);
 
   useEffect(() => {
-    fetchDebate();
-  }, [slug]);
+    void fetchDebate();
+  }, [fetchDebate]);
+
+  /**
+   * The retained key identifies ONE conviction backing. Switching side, tier,
+   * or free-vs-paid is a different backing entirely — reusing the key there
+   * would replay the previous one and charge nothing while reporting success
+   * for a side the visitor never backed.
+   */
+  useEffect(() => {
+    idempotencyKeyRef.current = null;
+  }, [chosenSideKey, backTier, isPaidConviction]);
 
   const handlePostOpinion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chosenSideKey || !opinionText.trim()) return;
+    if (inFlightRef.current || !chosenSideKey || !opinionText.trim()) return;
 
+    inFlightRef.current = true;
     setIsSubmittingOpinion(true);
-    try {
-      const res = await fetch(`/api/v1/debates/${slug}/back`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          side_key: chosenSideKey,
-          kind: isPaidConviction ? 'boost' : 'free_opinion',
-          amount_cents: isPaidConviction ? boostAmountCents : 0,
-          payer_display: authorName,
-          opinion_text: opinionText.trim(),
-        }),
-      });
+    setOpinionError(null);
+    setOpinionNotice(null);
 
-      const data = await res.json();
-      if (res.ok) {
-        confetti({
-          particleCount: 70,
-          spread: 60,
-          origin: { y: 0.7 },
-          colors: ['#F0A824', '#FFC53D', '#F6F7FA'],
-        });
-        setOpinionText('');
-        setOpinionSuccess(true);
-        setTimeout(() => setOpinionSuccess(false), 4000);
-        fetchDebate();
-      }
-    } catch (err) {
-      console.error('Failed to post opinion:', err);
-    } finally {
-      setIsSubmittingOpinion(false);
+    if (isPaidConviction && !idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = newIdempotencyKey();
     }
+
+    // Only the tier is sent: the server prices it. A client-chosen amount would
+    // be ignored, so offering one would be a lie about how this works.
+    const res = await apiPost<{ replayed?: boolean; opinion_recorded?: boolean }>(
+      `/api/v1/debates/${slug}/back`,
+      {
+        side_key: chosenSideKey,
+        kind: isPaidConviction ? backTier : 'free_opinion',
+        payer_display: authorName,
+        opinion_text: opinionText.trim().slice(0, OPINION_MAX_LENGTH),
+      },
+      isPaidConviction && idempotencyKeyRef.current
+        ? { idempotencyKey: idempotencyKeyRef.current }
+        : {}
+    );
+
+    inFlightRef.current = false;
+    setIsSubmittingOpinion(false);
+
+    if (res.ok) {
+      idempotencyKeyRef.current = null;
+
+      // A replay settled nothing new, and the server refuses to publish the
+      // argument twice. Keep the text in the composer and say so plainly rather
+      // than firing confetti over an empty box.
+      if (res.data?.replayed) {
+        if (res.data.opinion_recorded) setOpinionText('');
+        setOpinionNotice(
+          res.data.opinion_recorded
+            ? 'Already processed — this backing was recorded earlier. Your balance is up to date.'
+            : 'Already processed — this backing was recorded earlier, and your argument was not posted again. Your balance is up to date.'
+        );
+        void fetchDebate();
+        void refreshWallet();
+        return;
+      }
+
+      confetti({
+        particleCount: 70,
+        spread: 60,
+        origin: { y: 0.7 },
+        colors: ['#F0A824', '#FFC53D', '#F6F7FA'],
+      });
+      setOpinionText('');
+      setOpinionSuccess(true);
+      setTimeout(() => setOpinionSuccess(false), 4000);
+      void fetchDebate();
+      void refreshWallet();
+      return;
+    }
+
+    const shortfall = insufficientFunds(res);
+    if (shortfall) {
+      idempotencyKeyRef.current = null;
+      setTopUpRecommendation(recommendedTopUpCents(shortfall.shortfallCents));
+      setOpinionError('Not enough wallet balance for that conviction chip. Add funds, or post for free.');
+      setIsTopUpOpen(true);
+      return;
+    }
+
+    if (!res.networkError) idempotencyKeyRef.current = null;
+    setOpinionError(errorText(res, 'Your argument could not be published.'));
   };
 
-  if (!debate) {
+  if (isLoading) {
     return (
       <div className="min-h-screen text-ink flex flex-col">
         <Navbar />
@@ -116,6 +205,33 @@ export default function SingleDebatePage() {
           <div className="flex items-center gap-3">
             <span className="led led-gold" aria-hidden />
             <span className="kicker">Loading arena debate</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!debate) {
+    return (
+      <div className="min-h-screen text-ink flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="panel rounded-card px-8 py-10 text-center max-w-md w-full animate-rise">
+            <AlertCircle className="w-7 h-7 text-down mx-auto mb-3" aria-hidden />
+            <h2 className="text-xl font-bold tracking-tight text-ink">Debate unavailable</h2>
+            <p role="alert" className="text-meta text-ink-3 mt-2">
+              {loadError ?? 'This debate does not exist.'}
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-2">
+              <button type="button" onClick={() => void fetchDebate()} className="btn btn-ghost btn-sm">
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
+              <Link href="/debates" className="btn btn-ghost btn-sm">
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>All debates</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -275,16 +391,42 @@ export default function SingleDebatePage() {
 
               {/* Opinion text */}
               <div>
-                <label className="kicker block mb-2">Your uncensored argument / thesis *</label>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <label htmlFor="debate-opinion" className="kicker">
+                    Your uncensored argument / thesis *
+                  </label>
+                  <span className="text-micro text-ink-3 tnum">
+                    {opinionText.length}/{OPINION_MAX_LENGTH}
+                  </span>
+                </div>
                 <textarea
+                  id="debate-opinion"
                   rows={3}
                   required
+                  maxLength={OPINION_MAX_LENGTH}
                   value={opinionText}
                   onChange={(e) => setOpinionText(e.target.value)}
-                  placeholder={`Why is your chosen side the undisputed winner? Share your raw thoughts...`}
+                  aria-describedby={opinionError ? 'debate-opinion-error' : undefined}
+                  placeholder="Why is your chosen side the undisputed winner? Share your raw thoughts…"
                   className="field resize-none"
                 />
               </div>
+
+              <DisplayNameField id="debate-alias" value={authorName} onChange={setAuthorName} />
+
+              {opinionError && (
+                <p id="debate-opinion-error" role="alert" className="flex items-start gap-2 text-dense text-down">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+                  <span>{opinionError}</span>
+                </p>
+              )}
+
+              {opinionNotice && (
+                <p role="status" className="flex items-start gap-2 text-dense text-ink-2">
+                  <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-ink-3" aria-hidden />
+                  <span>{opinionNotice}</span>
+                </p>
+              )}
 
               {/* Free vs Paid Conviction Switcher */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-line">
@@ -296,21 +438,20 @@ export default function SingleDebatePage() {
                       onChange={(e) => setIsPaidConviction(e.target.checked)}
                       className="w-3.5 h-3.5 rounded-[4px] border-line bg-black/40 accent-gold"
                     />
-                    <span>Optional micro-boost</span>
+                    <span>Back it with a conviction chip</span>
                   </label>
 
                   {isPaidConviction && (
-                    <div className="seg animate-rise">
-                      {[1, 5, 10, 25, 50, 100].map((cents) => (
+                    <div className="seg animate-rise" role="group" aria-label="Conviction chip">
+                      {BACK_TIERS.map((tier) => (
                         <button
                           type="button"
-                          key={cents}
-                          onClick={() => setBoostAmountCents(cents)}
-                          className={`seg-item tnum ${
-                            boostAmountCents === cents ? 'seg-item-active' : ''
-                          }`}
+                          key={tier.key}
+                          onClick={() => setBackTier(tier.key)}
+                          aria-pressed={backTier === tier.key}
+                          className={`seg-item tnum ${backTier === tier.key ? 'seg-item-active' : ''}`}
                         >
-                          {cents < 100 ? `${cents}¢` : `$${cents / 100}`}
+                          {tier.label}
                         </button>
                       ))}
                     </div>
@@ -322,14 +463,24 @@ export default function SingleDebatePage() {
                   disabled={isSubmittingOpinion || !opinionText.trim()}
                   className="btn btn-gold"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>
-                    {isSubmittingOpinion
-                      ? 'Publishing Argument...'
-                      : isPaidConviction
-                      ? `Post Argument + ${boostAmountCents < 100 ? `${boostAmountCents}¢` : `$${boostAmountCents / 100}`} Boost`
-                      : 'Cast Vote & Post Opinion ($0.00 Free)'}
-                  </span>
+                  {isSubmittingOpinion ? (
+                    <>
+                      <span
+                        className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black"
+                        aria-hidden
+                      />
+                      <span>Publishing argument…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span className="tnum">
+                        {isPaidConviction
+                          ? `Post argument + ${formatCents(DEBATE_BACK_ALLOWED[backTier])}`
+                          : 'Cast vote & post opinion (free)'}
+                      </span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -426,11 +577,22 @@ export default function SingleDebatePage() {
                       <HoldToLikeButton
                         postId={side.post.id}
                         initialLikes={side.post.like_units}
-                        onLikeExecuted={fetchDebate}
-                        onInsufficientFunds={() => setIsTopUpOpen(true)}
+                        onLikeExecuted={() => {
+                          void fetchDebate();
+                          void refreshWallet();
+                        }}
+                        onInsufficientFunds={(shortfallCents) => {
+                          setTopUpRecommendation(recommendedTopUpCents(shortfallCents));
+                          setIsTopUpOpen(true);
+                        }}
+                        onLikeCapReached={() => {
+                          setSelectedPost(side.post);
+                          setIsBoostOpen(true);
+                        }}
                       />
 
                       <button
+                        type="button"
                         onClick={() => {
                           setSelectedPost(side.post);
                           setIsBoostOpen(true);
@@ -456,19 +618,26 @@ export default function SingleDebatePage() {
           post={selectedPost}
           onSuccess={() => {
             setIsBoostOpen(false);
-            fetchDebate();
+            void fetchDebate();
+            void refreshWallet();
           }}
         />
       )}
 
       <WalletTopUpModal
         isOpen={isTopUpOpen}
-        onClose={() => setIsTopUpOpen(false)}
-        currentBalanceCents={5000}
+        onClose={() => {
+          setIsTopUpOpen(false);
+          void refreshWallet();
+        }}
+        currentBalanceCents={balanceCents}
         onTopUpSuccess={() => {
           setIsTopUpOpen(false);
-          fetchDebate();
+          void refreshWallet();
+          // Deliberately no auto-replay: the visitor re-submits when ready.
+          setOpinionError('Wallet topped up — submit your argument again to back it.');
         }}
+        recommendedCents={topUpRecommendation}
       />
     </div>
   );

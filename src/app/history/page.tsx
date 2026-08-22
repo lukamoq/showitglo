@@ -1,51 +1,58 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BoardSnapshot } from '@/lib/types';
 import { formatUSD } from '@/lib/utils';
-import { History, Calendar } from 'lucide-react';
+import { History, Calendar, AlertCircle, RefreshCw } from 'lucide-react';
+import { apiGet, errorText } from '@/components/system/api';
 
 export default function HistoryPage() {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [snapshot, setSnapshot] = useState<BoardSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Load available snapshot dates
-  useEffect(() => {
-    const fetchDates = async () => {
-      try {
-        const res = await fetch('/api/v1/boards/global/history');
-        const data = await res.json();
-        if (data.available_dates && data.available_dates.length > 0) {
-          setAvailableDates(data.available_dates);
-          setSelectedDate(data.available_dates[0]);
-        }
-      } catch (err) {
-        console.error('Error loading history dates:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchDates();
+  const fetchDates = useCallback(async () => {
+    const res = await apiGet<{ available_dates: string[] }>('/api/v1/boards/global/history');
+    setIsLoading(false);
+
+    if (!res.ok) {
+      setLoadError(errorText(res, 'The archive index could not be loaded.'));
+      return;
+    }
+
+    setLoadError(null);
+    const dates = res.data?.available_dates ?? [];
+    setAvailableDates(dates);
+    setSelectedDate((current) => current || dates[0] || '');
   }, []);
+
+  useEffect(() => {
+    void fetchDates();
+  }, [fetchDates]);
 
   // Fetch snapshot when selectedDate changes
   useEffect(() => {
     if (!selectedDate) return;
-    const fetchSnapshot = async () => {
-      try {
-        const res = await fetch(`/api/v1/boards/global/history?date=${selectedDate}`);
-        const data = await res.json();
-        if (data.rankings) {
-          setSnapshot(data);
-        }
-      } catch (err) {
-        console.error('Error fetching snapshot:', err);
+    let cancelled = false;
+
+    void (async () => {
+      const res = await apiGet<BoardSnapshot>(`/api/v1/boards/global/history?date=${selectedDate}`);
+      if (cancelled) return;
+      if (res.ok && res.data?.rankings) {
+        setSnapshot(res.data);
+        setLoadError(null);
+      } else {
+        setSnapshot(null);
+        setLoadError(errorText(res, `No archived board found for ${selectedDate}.`));
       }
+    })();
+
+    return () => {
+      cancelled = true;
     };
-    fetchSnapshot();
   }, [selectedDate]);
 
   return (
@@ -89,11 +96,13 @@ export default function HistoryPage() {
                     <div key={i} className="skeleton h-8 w-24 rounded-control" />
                   ))}
                 </div>
-              ) : (
+              ) : availableDates.length > 0 ? (
                 <div className="seg">
                   {availableDates.map((date) => (
                     <button
                       key={date}
+                      type="button"
+                      aria-pressed={selectedDate === date}
                       onClick={() => setSelectedDate(date)}
                       className={`seg-item tnum ${selectedDate === date ? 'seg-item-active' : ''}`}
                     >
@@ -101,9 +110,26 @@ export default function HistoryPage() {
                     </button>
                   ))}
                 </div>
+              ) : (
+                <p className="text-dense text-ink-3">
+                  No daily snapshots have been archived yet.
+                </p>
               )}
             </div>
           </div>
+
+          {loadError && (
+            <div className="panel rounded-card p-6 text-center max-w-md mx-auto">
+              <AlertCircle className="w-7 h-7 text-down mx-auto mb-3" aria-hidden />
+              <p role="alert" className="text-dense text-ink-2">
+                {loadError}
+              </p>
+              <button type="button" onClick={() => void fetchDates()} className="btn btn-ghost btn-sm mt-5">
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
+            </div>
+          )}
 
           {/* Snapshot ledger */}
           {snapshot ? (
@@ -188,12 +214,14 @@ export default function HistoryPage() {
               </div>
             </div>
           ) : (
-            <div className="panel rounded-card p-12 text-center max-w-md mx-auto">
-              <History className="w-8 h-8 text-ink-3 mx-auto mb-3" aria-hidden />
-              <p className="text-dense text-ink-3">
-                Select a date to replay the board as it stood.
-              </p>
-            </div>
+            !loadError && (
+              <div className="panel rounded-card p-12 text-center max-w-md mx-auto">
+                <History className="w-8 h-8 text-ink-3 mx-auto mb-3" aria-hidden />
+                <p className="text-dense text-ink-3">
+                  Select a date to replay the board as it stood.
+                </p>
+              </div>
+            )
           )}
         </div>
       </div>

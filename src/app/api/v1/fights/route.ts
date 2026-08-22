@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/db';
-import '@/lib/db/seed';
+
+import { getFights } from '@/lib/db/store';
+import { failure } from '@/lib/http';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const fights = db.getFights();
-  return NextResponse.json({ fights });
+  try {
+    const fights = await getFights();
+    return NextResponse.json({ fights });
+  } catch (err) {
+    return failure('fights.list.failed', err);
+  }
 }

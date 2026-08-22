@@ -1,94 +1,185 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/db';
-import { InteractionKind } from '@/lib/types';
-import '@/lib/db/seed';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
-) {
+import {
+  addDebateOpinion,
+  addFreeVote,
+  checkDbRateLimit,
+  getDebateBySlug,
+  recordInteraction,
+} from '@/lib/db/store';
+import { assertSameOrigin, getOrCreateSessionUser } from '@/lib/session';
+import { DEBATE_BACK_ALLOWED, DebateBackTier, isDebateBackTier } from '@/lib/pricing';
+import {
+  badOrigin,
+  badRequest,
+  enumField,
+  failure,
+  notFound,
+  optionalText,
+  rateLimited,
+  readIdempotencyKey,
+  readJsonBody,
+} from '@/lib/http';
+
+export const dynamic = 'force-dynamic';
+
+const MAX_OPINION = 500;
+const VISIBILITIES = ['alias', 'anonymous'] as const;
+const FREE_KIND = 'free_opinion';
+
+/**
+ * POST /api/v1/debates/[slug]/back
+ *
+ * Backs one side of a war, free or paid.
+ *
+ * `amount_cents` in the request body is read but never honoured: a paid
+ * backing costs exactly `DEBATE_BACK_ALLOWED[kind]`. That is the whole point
+ * of the conviction tiers — the client picks a chip, not a number.
+ */
+export async function POST(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  if (!assertSameOrigin(request)) return badOrigin();
+
+  const { slug } = await params;
+
+  const idempotency = readIdempotencyKey(request);
+  if (!idempotency.ok) return idempotency.response;
+
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
+
+  const sideKey = optionalText(body.side_key, { field: 'side_key', max: 64 });
+  if (!sideKey.ok) return sideKey.response;
+  if (!sideKey.value) return badRequest('side_key is required.', 'INVALID_FIELD', { field: 'side_key' });
+
+  const opinionText = optionalText(body.opinion_text, {
+    field: 'opinion_text',
+    max: MAX_OPINION,
+    multiline: true,
+  });
+  if (!opinionText.ok) return opinionText.response;
+
+  const payerDisplay = optionalText(body.payer_display, { field: 'payer_display', max: 50 });
+  if (!payerDisplay.ok) return payerDisplay.response;
+
+  const visibility = enumField<(typeof VISIBILITIES)[number]>(body.visibility, {
+    field: 'visibility',
+    allowed: VISIBILITIES,
+    fallback: 'alias',
+  });
+  if (!visibility.ok) return visibility.response;
+
+  // Free unless the caller names a real conviction tier.
+  const rawKind = body.kind;
+  const isFree =
+    rawKind === undefined || rawKind === null || rawKind === FREE_KIND || rawKind === '';
+
+  let tier: DebateBackTier | null = null;
+  if (!isFree) {
+    if (!isDebateBackTier(rawKind)) {
+      return badRequest(
+        `kind must be "${FREE_KIND}" or one of: ${Object.keys(DEBATE_BACK_ALLOWED).join(', ')}.`,
+        'INVALID_FIELD',
+        { field: 'kind', allowed: [FREE_KIND, ...Object.keys(DEBATE_BACK_ALLOWED)] }
+      );
+    }
+    tier = rawKind;
+  }
+
   try {
-    const { slug } = await params;
-    const debate = db.getDebateBySlug(slug);
+    const debate = await getDebateBySlug(slug);
+    if (!debate) return notFound('Debate not found.', 'DEBATE_NOT_FOUND');
 
-    if (!debate) {
-      return NextResponse.json({ error: 'Debate not found' }, { status: 404 });
-    }
+    const side = debate.sides.find((s) => s.side_key === sideKey.value);
+    if (!side) return notFound('Side not found in this debate.', 'SIDE_NOT_FOUND');
 
-    const body = await request.json();
-    const {
-      side_key,
-      kind = 'boost',
-      units = 10,
-      amount_cents = 0,
-      visibility = 'alias',
-      user_id = 'usr_marc',
-      payer_display,
-      opinion_text,
-    } = body;
+    const user = await getOrCreateSessionUser();
 
-    const side = debate.sides.find((s) => s.side_key === side_key);
-    if (!side) {
-      return NextResponse.json({ error: 'Side not found in this debate' }, { status: 404 });
-    }
+    // --- free vote / free opinion ----------------------------------------
+    if (!tier) {
+      const limit = await checkDbRateLimit(`dback:u:${user.id}`, 30, 3600);
+      if (!limit.allowed) {
+        return rateLimited('You have reached the hourly limit for free backings.', limit.resetInMs);
+      }
 
-    const finalAmountCents = Number(amount_cents);
+      const authorName =
+        visibility.value === 'anonymous'
+          ? 'Anonymous'
+          : payerDisplay.value || user.alias || 'Community Member';
 
-    // Free Opinion / Free Vote mode ($0 cost)
-    if (kind === 'free_opinion' || finalAmountCents === 0) {
-      if (opinion_text && opinion_text.trim().length > 0) {
-        db.addDebateOpinion({
+      if (opinionText.value) {
+        await addDebateOpinion({
           debateId: debate.id,
-          sideKey: side_key,
-          authorName: payer_display || 'Community Member',
-          text: opinion_text.trim(),
+          sideKey: side.side_key,
+          authorName,
+          text: opinionText.value,
           isPaid: false,
           amountCents: 0,
         });
       } else {
-        db.addFreeVote(debate.id, side_key);
+        await addFreeVote(debate.id, side.side_key);
       }
 
       return NextResponse.json({
         success: true,
-        side_key,
+        side_key: side.side_key,
         amount_cents: 0,
         free_vote: true,
-        debate: db.getDebateBySlug(slug),
+        replayed: false,
+        opinion_recorded: Boolean(opinionText.value),
+        debate: await getDebateBySlug(slug),
       });
     }
 
-    // Paid Conviction Backing mode
-    const result = db.recordInteraction({
+    // --- paid conviction backing -----------------------------------------
+    const amountCents = DEBATE_BACK_ALLOWED[tier];
+    const authorName =
+      visibility.value === 'anonymous'
+        ? 'Anonymous'
+        : payerDisplay.value || user.alias || 'Community Member';
+
+    const result = await recordInteraction({
       postId: side.post.id,
-      userId: user_id,
-      kind: kind as InteractionKind,
-      units: Number(units) || 1,
-      amountCents: finalAmountCents,
-      visibility,
-      payerDisplay: payer_display || 'Marc (ShipFast)',
+      userId: user.id,
+      kind: tier === 'mega' ? 'power' : tier,
+      units: 1,
+      amountCents,
+      visibility: visibility.value,
+      payerDisplay: authorName,
+      idempotencyKey: idempotency.key,
     });
 
-    if (opinion_text && opinion_text.trim().length > 0) {
-      db.addDebateOpinion({
+    // A replay must not publish the opinion a second time — and the client has
+    // to be told, or it clears the composer believing the text was posted.
+    const opinionRecorded = Boolean(opinionText.value) && !result.replayed;
+    if (opinionRecorded) {
+      await addDebateOpinion({
         debateId: debate.id,
-        sideKey: side_key,
-        authorName: payer_display || 'Marc (ShipFast)',
-        text: opinion_text.trim(),
+        sideKey: side.side_key,
+        authorName,
+        text: opinionText.value as string,
         isPaid: true,
-        amountCents: finalAmountCents,
+        amountCents,
       });
     }
+
+    // On a replay, describe the backing that actually exists: the side is the
+    // one the stored interaction paid for, which need not be the side named in
+    // a request that reused someone's key.
+    const settledSide =
+      debate.sides.find((s) => s.post.id === result.interaction.post_id)?.side_key ?? side.side_key;
 
     return NextResponse.json({
       success: true,
-      side_key,
-      amount_cents: finalAmountCents,
+      side_key: result.replayed ? settledSide : side.side_key,
+      amount_cents: result.interaction.amount_cents,
       new_balance_cents: result.wallet.balance_cents,
       new_rank: result.newRank,
-      debate: db.getDebateBySlug(slug),
+      replayed: result.replayed,
+      opinion_recorded: opinionRecorded,
+      debate: await getDebateBySlug(slug),
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  } catch (err) {
+    return failure('debate.back.failed', err, { slug });
   }
 }

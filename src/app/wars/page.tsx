@@ -1,38 +1,51 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BoostDrawer } from '@/components/boost/BoostDrawer';
 import { FightPair, RankedPostView } from '@/lib/types';
 import { formatUSD } from '@/lib/utils';
-import { Swords, Zap } from 'lucide-react';
+import { AlertCircle, RefreshCw, Swords, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { HoldToLikeButton } from '@/components/interactions/HoldToLikeButton';
 import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
+import { apiGet, errorText, recommendedTopUpCents } from '@/components/system/api';
+import { useWallet } from '@/components/system/useWallet';
 
 export default function WarsPage() {
   const [fights, setFights] = useState<FightPair[]>([]);
   const [selectedPost, setSelectedPost] = useState<RankedPostView | null>(null);
   const [isBoostOpen, setIsBoostOpen] = useState(false);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+  const [topUpRecommendation, setTopUpRecommendation] = useState<number | undefined>(undefined);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchFights = async () => {
-    try {
-      const res = await fetch('/api/v1/fights');
-      const data = await res.json();
-      if (data.fights) setFights(data.fights);
-    } catch (err) {
-      console.error('Error loading fights:', err);
+  const { balanceCents, refresh: refreshWallet } = useWallet();
+
+  const fetchFights = useCallback(async () => {
+    const res = await apiGet<{ fights: FightPair[] }>('/api/v1/fights');
+    setIsLoading(false);
+    if (!res.ok || !res.data?.fights) {
+      setLoadError(errorText(res, 'Live fights could not be loaded.'));
+      return;
     }
-  };
+    setLoadError(null);
+    setFights(res.data.fights);
+  }, []);
 
   useEffect(() => {
-    fetchFights();
-  }, []);
+    void fetchFights();
+  }, [fetchFights]);
 
   const handleBoostPost = (post: RankedPostView) => {
     setSelectedPost(post);
     setIsBoostOpen(true);
+  };
+
+  const openTopUpFor = (shortfallCents: number) => {
+    setTopUpRecommendation(recommendedTopUpCents(shortfallCents));
+    setIsTopUpOpen(true);
   };
 
   return (
@@ -62,7 +75,24 @@ export default function WarsPage() {
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
           {/* Fights ledger */}
-          {fights.length > 0 ? (
+          {loadError ? (
+            <div className="panel rounded-card p-10 text-center max-w-md mx-auto">
+              <AlertCircle className="w-7 h-7 text-down mx-auto mb-3" aria-hidden />
+              <p role="alert" className="text-dense text-ink-2">
+                {loadError}
+              </p>
+              <button type="button" onClick={() => void fetchFights()} className="btn btn-ghost btn-sm mt-5">
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
+            </div>
+          ) : isLoading ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="skeleton h-40 w-full rounded-card" />
+              ))}
+            </div>
+          ) : fights.length > 0 ? (
             <div className="panel rounded-card overflow-hidden animate-rise">
               <div className="px-4 sm:px-6 py-3 border-b border-line flex items-center justify-between gap-3">
                 <span className="kicker">Active fight pairs</span>
@@ -157,10 +187,15 @@ export default function WarsPage() {
                             <HoldToLikeButton
                               postId={fight.post_a.id}
                               initialLikes={fight.post_a.like_units}
-                              onLikeExecuted={fetchFights}
-                              onInsufficientFunds={() => setIsTopUpOpen(true)}
+                              onLikeExecuted={() => {
+                                void fetchFights();
+                                void refreshWallet();
+                              }}
+                              onInsufficientFunds={openTopUpFor}
+                              onLikeCapReached={() => handleBoostPost(fight.post_a)}
                             />
                             <button
+                              type="button"
                               onClick={() => handleBoostPost(fight.post_a)}
                               className="btn btn-ghost btn-xs flex-1 text-up hover:border-up/40"
                             >
@@ -202,10 +237,15 @@ export default function WarsPage() {
                             <HoldToLikeButton
                               postId={fight.post_b.id}
                               initialLikes={fight.post_b.like_units}
-                              onLikeExecuted={fetchFights}
-                              onInsufficientFunds={() => setIsTopUpOpen(true)}
+                              onLikeExecuted={() => {
+                                void fetchFights();
+                                void refreshWallet();
+                              }}
+                              onInsufficientFunds={openTopUpFor}
+                              onLikeCapReached={() => handleBoostPost(fight.post_b)}
                             />
                             <button
+                              type="button"
                               onClick={() => handleBoostPost(fight.post_b)}
                               className="btn btn-ghost btn-xs flex-1 text-down hover:border-down/40"
                             >
@@ -239,17 +279,24 @@ export default function WarsPage() {
         post={selectedPost}
         isOpen={isBoostOpen}
         onClose={() => setIsBoostOpen(false)}
-        onSuccess={fetchFights}
+        onSuccess={() => {
+          void fetchFights();
+          void refreshWallet();
+        }}
       />
 
       <WalletTopUpModal
         isOpen={isTopUpOpen}
-        onClose={() => setIsTopUpOpen(false)}
-        currentBalanceCents={0}
+        onClose={() => {
+          setIsTopUpOpen(false);
+          void refreshWallet();
+        }}
+        currentBalanceCents={balanceCents}
         onTopUpSuccess={() => {
-          fetchFights();
+          void refreshWallet();
           setIsTopUpOpen(false);
         }}
+        recommendedCents={topUpRecommendation}
       />
     </div>
   );

@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
-import { BoostDrawer } from '@/components/boost/BoostDrawer';
-import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
 import { CreateWarModal } from '@/components/wars/CreateWarModal';
-import { DebateView, RankedPostView } from '@/lib/types';
-import { formatUSD, formatCents } from '@/lib/utils';
-import { Swords, ShieldCheck, Sparkles, ArrowRight, MessageSquare, Plus } from 'lucide-react';
+import { DebateView } from '@/lib/types';
+import { formatCents } from '@/lib/utils';
+import { AlertCircle, ArrowRight, MessageSquare, Plus, RefreshCw, ShieldCheck, Sparkles, Swords } from 'lucide-react';
 import Link from 'next/link';
+import { apiGet, errorText } from '@/components/system/api';
 
 /**
  * Sides of a fight read as up vs down first, then fall back to the neutral
@@ -26,29 +25,24 @@ const sideTone = (index: number) => SIDE_TONES[index % SIDE_TONES.length];
 
 export default function DebatesPage() {
   const [debates, setDebates] = useState<DebateView[]>([]);
-  const [selectedPost, setSelectedPost] = useState<RankedPostView | null>(null);
-  const [isBoostOpen, setIsBoostOpen] = useState(false);
-  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [isCreateWarOpen, setIsCreateWarOpen] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchDebates = async () => {
-    try {
-      const res = await fetch('/api/v1/debates');
-      const data = await res.json();
-      if (data.debates) setDebates(data.debates);
-    } catch (err) {
-      console.error('Error fetching debates:', err);
+  const fetchDebates = useCallback(async () => {
+    const res = await apiGet<{ debates: DebateView[] }>('/api/v1/debates');
+    setIsLoading(false);
+    if (!res.ok || !res.data?.debates) {
+      setLoadError(errorText(res, 'Debates could not be loaded.'));
+      return;
     }
-  };
-
-  useEffect(() => {
-    fetchDebates();
+    setLoadError(null);
+    setDebates(res.data.debates);
   }, []);
 
-  const handleBoost = (post: RankedPostView) => {
-    setSelectedPost(post);
-    setIsBoostOpen(true);
-  };
+  useEffect(() => {
+    void fetchDebates();
+  }, [fetchDebates]);
 
   return (
     <div className="min-h-screen text-ink flex flex-col relative overflow-x-hidden">
@@ -74,11 +68,41 @@ export default function DebatesPage() {
               lead the global scoreboard.
             </p>
 
-            <button onClick={() => setIsCreateWarOpen(true)} className="btn btn-gold mt-6">
+            <button type="button" onClick={() => setIsCreateWarOpen(true)} className="btn btn-gold mt-6">
               <Plus className="w-4 h-4" />
               <span>Launch a New War (Free)</span>
             </button>
           </div>
+
+          {loadError && (
+            <div className="panel rounded-card p-8 text-center max-w-md mx-auto mb-6">
+              <AlertCircle className="w-7 h-7 text-down mx-auto mb-3" aria-hidden />
+              <p role="alert" className="text-dense text-ink-2">
+                {loadError}
+              </p>
+              <button type="button" onClick={() => void fetchDebates()} className="btn btn-ghost btn-sm mt-5">
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
+            </div>
+          )}
+
+          {!loadError && isLoading && (
+            <div className="space-y-6">
+              {[0, 1].map((i) => (
+                <div key={i} className="skeleton h-64 w-full rounded-card" />
+              ))}
+            </div>
+          )}
+
+          {!loadError && !isLoading && debates.length === 0 && (
+            <div className="panel rounded-card p-12 text-center max-w-md mx-auto">
+              <Swords className="w-8 h-8 text-ink-3 mx-auto mb-3" aria-hidden />
+              <p className="text-dense text-ink-3">
+                No wars have been launched yet. Start the first one — it is free.
+              </p>
+            </div>
+          )}
 
           {/* Debate Slabs */}
           <div className="space-y-6">
@@ -247,33 +271,13 @@ export default function DebatesPage() {
         </div>
       </div>
 
+      {/* Backing happens inside a debate (/d/[slug]), where a side is chosen —
+          this index page only lists and links. */}
       <CreateWarModal
         isOpen={isCreateWarOpen}
         onClose={() => setIsCreateWarOpen(false)}
         onWarCreated={(newDebate) => {
           setDebates([newDebate, ...debates]);
-        }}
-      />
-
-      {selectedPost && (
-        <BoostDrawer
-          isOpen={isBoostOpen}
-          onClose={() => setIsBoostOpen(false)}
-          post={selectedPost}
-          onSuccess={() => {
-            setIsBoostOpen(false);
-            fetchDebates();
-          }}
-        />
-      )}
-
-      <WalletTopUpModal
-        isOpen={isTopUpOpen}
-        onClose={() => setIsTopUpOpen(false)}
-        currentBalanceCents={5000}
-        onTopUpSuccess={() => {
-          setIsTopUpOpen(false);
-          fetchDebates();
         }}
       />
     </div>

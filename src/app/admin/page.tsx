@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Category, AuditLog, Report, Post } from '@/lib/types';
-import { formatUSD, formatCents, timeAgo } from '@/lib/utils';
+import { formatUSD, timeAgo } from '@/lib/utils';
 import {
   ShieldAlert,
   Sliders,
@@ -12,108 +12,264 @@ import {
   XCircle,
   AlertTriangle,
   RotateCcw,
+  KeyRound,
+  LogOut,
 } from 'lucide-react';
+import { apiGet, apiPost, errorText } from '@/components/system/api';
+
+interface AdminStatsView {
+  recognized_spend_dollars?: number;
+  unspent_float_dollars?: number;
+  stripe_fees_dollars?: number;
+  distinct_backers?: number;
+  total_likes_units?: number;
+}
+
+const ADMIN_KEY_STORAGE = 'sig_admin_key';
+
+function readStoredAdminKey(): string {
+  try {
+    return window.sessionStorage.getItem(ADMIN_KEY_STORAGE) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function writeStoredAdminKey(key: string): void {
+  try {
+    if (key) window.sessionStorage.setItem(ADMIN_KEY_STORAGE, key);
+    else window.sessionStorage.removeItem(ADMIN_KEY_STORAGE);
+  } catch {
+    /* the key simply won't survive a reload */
+  }
+}
 
 export default function AdminPage() {
-  const [stats, setStats] = useState<any>({});
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [stats, setStats] = useState<AdminStatsView>({});
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [reports, setReports] = useState<Report[]>([]);
   const [pendingPosts, setPendingPosts] = useState<Post[]>([]);
 
   const [selectedStrategy, setSelectedStrategy] = useState<string>('percent');
   const [halfLifeHours, setHalfLifeHours] = useState<number>(168);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const fetchAdminData = async () => {
-    try {
-      const [resOverview, resMod] = await Promise.all([
-        fetch('/api/v1/admin/overview'),
-        fetch('/api/v1/admin/moderation'),
-      ]);
-      const dataOverview = await resOverview.json();
-      const dataMod = await resMod.json();
+  // Admin key: never rendered back, kept only for this browser tab.
+  const [adminKey, setAdminKey] = useState<string>('');
+  const [keyDraft, setKeyDraft] = useState<string>('');
+  const [authState, setAuthState] = useState<'needs_key' | 'ok' | 'unauthorized' | 'not_configured'>('needs_key');
 
-      if (dataOverview.stats) setStats(dataOverview.stats);
-      if (dataOverview.categories) {
-        setCategories(dataOverview.categories);
-        const globalCat = dataOverview.categories.find((c: any) => c.id === 'global');
-        if (globalCat) {
-          setSelectedStrategy(globalCat.increment_strategy);
-          setHalfLifeHours(globalCat.half_life_hours);
-        }
-      }
-      if (dataOverview.recent_audit_logs) setAuditLogs(dataOverview.recent_audit_logs);
-      if (dataMod.reports) setReports(dataMod.reports);
-      if (dataMod.pending_posts) setPendingPosts(dataMod.pending_posts);
-    } catch (err) {
-      console.error('Error fetching admin data:', err);
-    }
-  };
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [moderationTarget, setModerationTarget] = useState<{ postId: string; action: 'approve' | 'remove' } | null>(
+    null
+  );
+  const [moderationReason, setModerationReason] = useState('');
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
-    fetchAdminData();
+    const stored = readStoredAdminKey();
+    if (stored) setAdminKey(stored);
   }, []);
 
+  const fetchAdminData = useCallback(async () => {
+    // No key, no request: an unauthenticated admin fetch tells us nothing and
+    // only produces noise in the logs.
+    if (!adminKey) {
+      setAuthState('needs_key');
+      return;
+    }
+
+    const [resOverview, resMod] = await Promise.all([
+      apiGet<{ stats: AdminStatsView; categories: Category[]; recent_audit_logs: AuditLog[] }>(
+        '/api/v1/admin/overview',
+        { adminKey }
+      ),
+      apiGet<{ reports: Report[]; pending_posts: Post[] }>('/api/v1/admin/moderation', { adminKey }),
+    ]);
+
+    if (resOverview.status === 503 || resMod.status === 503) {
+      setAuthState('not_configured');
+      return;
+    }
+    if (resOverview.status === 401 || resMod.status === 401) {
+      setAuthState('unauthorized');
+      return;
+    }
+    if (!resOverview.ok) {
+      setErrorMessage(errorText(resOverview, 'Admin overview could not be loaded.'));
+      return;
+    }
+
+    setAuthState('ok');
+    setErrorMessage(null);
+
+    if (resOverview.data?.stats) setStats(resOverview.data.stats);
+    const globalCat = resOverview.data?.categories?.find((c) => c.id === 'global');
+    if (globalCat) {
+      setSelectedStrategy(globalCat.increment_strategy);
+      setHalfLifeHours(globalCat.half_life_hours);
+    }
+    if (resOverview.data?.recent_audit_logs) setAuditLogs(resOverview.data.recent_audit_logs);
+    if (resMod.ok && resMod.data?.pending_posts) setPendingPosts(resMod.data.pending_posts);
+  }, [adminKey]);
+
+  useEffect(() => {
+    void fetchAdminData();
+  }, [fetchAdminData]);
+
+  const runAdminPost = async (label: string, path: string, body: Record<string, unknown>) => {
+    if (inFlightRef.current) return false;
+    inFlightRef.current = true;
+    setBusyAction(label);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    const res = await apiPost(path, body, { adminKey });
+
+    inFlightRef.current = false;
+    setBusyAction(null);
+
+    if (res.status === 503) {
+      setAuthState('not_configured');
+      return false;
+    }
+    if (res.status === 401) {
+      setAuthState('unauthorized');
+      return false;
+    }
+    if (!res.ok) {
+      setErrorMessage(errorText(res, 'That admin action failed.'));
+      return false;
+    }
+    return true;
+  };
+
   const handleUpdateStrategy = async () => {
-    try {
-      const res = await fetch('/api/v1/admin/strategy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category_id: 'global',
-          strategy: selectedStrategy,
-          half_life_hours: Number(halfLifeHours),
-        }),
-      });
-      if (res.ok) {
-        setStatusMessage('✓ Strategy and half-life updated successfully in ledger!');
-        fetchAdminData();
-      }
-    } catch (err: any) {
-      alert(err.message);
+    const ok = await runAdminPost('strategy', '/api/v1/admin/strategy', {
+      category_id: 'global',
+      strategy: selectedStrategy,
+      half_life_hours: Number(halfLifeHours),
+    });
+    if (ok) {
+      setStatusMessage('Strategy and half-life updated.');
+      void fetchAdminData();
     }
   };
 
   const handleRebase = async () => {
-    if (!confirm('Rebase Board Epoch T0 to now? All base scores will be scaled by decay factor.')) return;
-    try {
-      const res = await fetch('/api/v1/admin/rebase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category_id: 'global' }),
-      });
-      if (res.ok) {
-        setStatusMessage('✓ Epoch rebase executed. Invariant base scores updated.');
-        fetchAdminData();
-      }
-    } catch (err: any) {
-      alert(err.message);
+    const ok = await runAdminPost('rebase', '/api/v1/admin/rebase', { category_id: 'global' });
+    if (ok) {
+      setStatusMessage('Epoch rebase executed. Invariant base scores updated.');
+      void fetchAdminData();
     }
   };
 
-  const handleModerate = async (postId: string, action: 'approve' | 'reject' | 'remove') => {
-    const reason = prompt(`Enter reason for ${action}:`, action === 'remove' ? 'Violated Terms §4: Unverified promotional claim' : 'Passed manual verification');
-    if (!reason) return;
+  const handleModerate = async () => {
+    if (!moderationTarget) return;
+    if (!moderationReason.trim()) {
+      setErrorMessage('A reason is required for every moderation action.');
+      return;
+    }
 
-    try {
-      const res = await fetch('/api/v1/admin/moderation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          post_id: postId,
-          action,
-          reason,
-        }),
-      });
-      if (res.ok) {
-        setStatusMessage(`✓ Opinion ${action} applied.`);
-        fetchAdminData();
-      }
-    } catch (err: any) {
-      alert(err.message);
+    const ok = await runAdminPost('moderate', '/api/v1/admin/moderation', {
+      post_id: moderationTarget.postId,
+      action: moderationTarget.action,
+      reason: moderationReason.trim(),
+    });
+
+    if (ok) {
+      setStatusMessage(`Moderation action "${moderationTarget.action}" applied.`);
+      setModerationTarget(null);
+      setModerationReason('');
+      void fetchAdminData();
     }
   };
+
+  const applyKey = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = keyDraft.trim();
+    if (!trimmed) return;
+    writeStoredAdminKey(trimmed);
+    setAdminKey(trimmed);
+    setKeyDraft('');
+    setErrorMessage(null);
+  };
+
+  const clearKey = () => {
+    writeStoredAdminKey('');
+    setAdminKey('');
+    setAuthState('needs_key');
+    setStats({});
+    setAuditLogs([]);
+    setPendingPosts([]);
+  };
+
+  if (authState !== 'ok') {
+    return (
+      <div className="min-h-screen flex flex-col relative overflow-x-hidden">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center px-4 py-16">
+          <div className="panel rounded-card p-8 w-full max-w-md animate-rise">
+            <div className="kicker flex items-center gap-2">
+              <ShieldAlert className="w-3.5 h-3.5" aria-hidden />
+              <span>Restricted — market operations</span>
+            </div>
+
+            {authState === 'not_configured' ? (
+              <>
+                <h1 className="text-xl font-bold tracking-tight text-ink mt-2">Admin access is not configured</h1>
+                <p className="text-dense text-ink-2 leading-relaxed mt-2">
+                  This deployment has no admin key set, so the admin API refuses every request. Nothing
+                  here can be unlocked from the browser.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-xl font-bold tracking-tight text-ink mt-2">Enter your admin key</h1>
+                <p className="text-dense text-ink-2 leading-relaxed mt-2">
+                  The key is sent as an <code className="text-ink-3">x-admin-key</code> header and kept
+                  only for this browser tab.
+                </p>
+
+                <form onSubmit={applyKey} className="mt-5 space-y-3">
+                  <div>
+                    <label htmlFor="admin-key" className="kicker block mb-1.5">
+                      Admin key
+                    </label>
+                    <input
+                      id="admin-key"
+                      type="password"
+                      autoComplete="off"
+                      value={keyDraft}
+                      onChange={(e) => setKeyDraft(e.target.value)}
+                      aria-describedby={authState === 'unauthorized' ? 'admin-key-error' : undefined}
+                      className="field"
+                    />
+                  </div>
+
+                  {authState === 'unauthorized' && (
+                    <p id="admin-key-error" role="alert" className="text-dense text-down">
+                      That key was rejected.
+                    </p>
+                  )}
+                  {errorMessage && (
+                    <p role="alert" className="text-dense text-down">
+                      {errorMessage}
+                    </p>
+                  )}
+
+                  <button type="submit" disabled={!keyDraft.trim()} className="btn btn-gold w-full">
+                    <KeyRound className="w-4 h-4" />
+                    <span>Unlock admin</span>
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-x-hidden">
@@ -132,18 +288,33 @@ export default function AdminPage() {
             </h1>
           </div>
 
-          <button
-            onClick={handleRebase}
-            className="btn btn-ghost btn-sm self-start sm:self-auto shrink-0"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Trigger Epoch Rebase</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => void handleRebase()}
+              disabled={busyAction !== null}
+              className="btn btn-ghost btn-sm"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>{busyAction === 'rebase' ? 'Rebasing…' : 'Trigger Epoch Rebase'}</span>
+            </button>
+
+            <button type="button" onClick={clearKey} className="btn btn-ghost btn-sm" title="Forget the admin key">
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Lock</span>
+            </button>
+          </div>
         </div>
 
         {statusMessage && (
-          <div className="mt-4 rounded-card border border-up/30 bg-up/10 p-3 text-dense text-up animate-rise">
+          <div role="status" className="mt-4 rounded-card border border-up/30 bg-up/10 p-3 text-dense text-up animate-rise">
             {statusMessage}
+          </div>
+        )}
+
+        {errorMessage && (
+          <div role="alert" className="mt-4 rounded-card border border-down/30 bg-down/10 p-3 text-dense text-down animate-rise">
+            {errorMessage}
           </div>
         )}
 
@@ -170,7 +341,7 @@ export default function AdminPage() {
             <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
               {formatUSD(stats.stripe_fees_dollars || 0)}
             </div>
-            <div className="text-meta text-ink-3 mt-1.5">~4–6% on prepaid volume</div>
+            <div className="text-meta text-ink-3 mt-1.5">Estimate: 2.9% + 30¢ per charge</div>
           </div>
 
           <div className="card rounded-card p-4">
@@ -247,6 +418,8 @@ export default function AdminPage() {
                     ].map((h) => (
                       <button
                         key={h.hours}
+                        type="button"
+                        aria-pressed={halfLifeHours === h.hours}
                         onClick={() => setHalfLifeHours(h.hours)}
                         className={`seg-item flex-1 justify-center text-center !whitespace-normal tnum ${
                           halfLifeHours === h.hours ? 'seg-item-active' : ''
@@ -258,8 +431,13 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <button onClick={handleUpdateStrategy} className="btn btn-gold w-full">
-                  Save Market Parameters
+                <button
+                  type="button"
+                  onClick={() => void handleUpdateStrategy()}
+                  disabled={busyAction !== null}
+                  className="btn btn-gold w-full"
+                >
+                  {busyAction === 'strategy' ? 'Saving…' : 'Save Market Parameters'}
                 </button>
               </div>
             </div>
@@ -293,7 +471,12 @@ export default function AdminPage() {
 
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => handleModerate(post.id, 'approve')}
+                        type="button"
+                        onClick={() => {
+                          setModerationTarget({ postId: post.id, action: 'approve' });
+                          setModerationReason('');
+                          setErrorMessage(null);
+                        }}
                         className="btn btn-ghost btn-xs !text-up hover:border-up/40"
                       >
                         <CheckCircle className="w-3 h-3" />
@@ -301,13 +484,54 @@ export default function AdminPage() {
                       </button>
 
                       <button
-                        onClick={() => handleModerate(post.id, 'remove')}
+                        type="button"
+                        onClick={() => {
+                          setModerationTarget({ postId: post.id, action: 'remove' });
+                          setModerationReason('');
+                          setErrorMessage(null);
+                        }}
                         className="btn btn-ghost btn-xs !text-down hover:border-down/40"
                       >
                         <XCircle className="w-3 h-3" />
                         Tombstone Remove
                       </button>
                     </div>
+
+                    {/* Every action is audit-logged, so the reason is typed here
+                        rather than guessed from a default. */}
+                    {moderationTarget?.postId === post.id && (
+                      <div className="mt-3 sunken rounded-control p-3 space-y-2 animate-rise">
+                        <label htmlFor={`mod-reason-${post.id}`} className="kicker block">
+                          Reason for {moderationTarget.action} (recorded in the audit log)
+                        </label>
+                        <input
+                          id={`mod-reason-${post.id}`}
+                          type="text"
+                          maxLength={500}
+                          value={moderationReason}
+                          onChange={(e) => setModerationReason(e.target.value)}
+                          placeholder="e.g. Violates Terms §4 — unverified promotional claim"
+                          className="field text-dense"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => void handleModerate()}
+                            disabled={busyAction !== null || !moderationReason.trim()}
+                            className="btn btn-ghost btn-xs"
+                          >
+                            {busyAction === 'moderate' ? 'Applying…' : `Confirm ${moderationTarget.action}`}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setModerationTarget(null)}
+                            className="btn btn-ghost btn-xs"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -1,61 +1,85 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/db';
-import { calculateDecayedScore } from '@/lib/engine/decay';
-import '@/lib/db/seed';
+import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
-  // Default user ID for demo/session: Marc (ShipFast)
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get('user_id') || 'usr_marc';
+import {
+  getRankedPostsByIds,
+  getUser,
+  getUserInteractions,
+  getUserNotifications,
+  getUserPosts,
+  getWallet,
+} from '@/lib/db/store';
+import { getOrCreateSessionUser } from '@/lib/session';
+import { authRequired, failure } from '@/lib/http';
 
-  const user = db.getUser(userId);
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
-  }
+export const dynamic = 'force-dynamic';
 
-  const userPosts = db.getUserPosts(userId);
-  const userInteractions = db.getUserInteractions(userId);
-  const notifications = db.getUserNotifications(userId);
-  const rankedBoard = db.getRankedBoard('global');
+/**
+ * GET /api/v1/me/dashboard
+ *
+ * Everything the signed-in visitor owns, and nothing else. The user id comes
+ * from the session cookie; the previous handler read it from `?user_id=`,
+ * which made every other account's posts, spend history and notifications
+ * readable by changing one query parameter.
+ *
+ * Identity is created on demand rather than demanded up front. This product has
+ * no signup, so a first-time visitor legitimately has no cookie yet, and racing
+ * them to a 401 turns "your dashboard is empty" into "you are not allowed in".
+ */
+export async function GET() {
+  try {
+    const session = await getOrCreateSessionUser();
 
-  // Compute live ranks and display scores for user's posts
-  const postsWithRank = userPosts.map((post) => {
-    const boardIndex = rankedBoard.findIndex((p) => p.id === post.id);
-    const rank = boardIndex >= 0 ? boardIndex + 1 : null;
-    const cat = db.getCategory(post.category_id || 'global');
-    const displayScore = calculateDecayedScore(
-      post.score_base,
-      Date.now(),
-      cat?.score_epoch || new Date().toISOString(),
-      cat?.half_life_hours || 168
+    const [user, posts, interactions, notifications, wallet] = await Promise.all([
+      getUser(session.id),
+      getUserPosts(session.id),
+      getUserInteractions(session.id, 100),
+      getUserNotifications(session.id, 50),
+      getWallet(session.id),
+    ]);
+
+    // The row is created before this point, so a miss means it was erased
+    // between the two — genuinely no session any more.
+    if (!user || user.deleted_at) return authRequired();
+
+    // Live rank for the user's own posts, batched — never a full board scan.
+    const rankedById = new Map(
+      (await getRankedPostsByIds(posts.map((p) => p.id))).map((p) => [p.id, p])
     );
 
-    return {
-      ...post,
-      rank,
-      display_score: Number(displayScore.toFixed(2)),
-    };
-  });
+    const postsWithRank = posts.map((post) => {
+      const ranked = rankedById.get(post.id);
+      return {
+        ...post,
+        rank: ranked ? ranked.rank : null,
+        display_score: ranked ? ranked.display_score : 0,
+      };
+    });
 
-  // Calculate total spent
-  const totalSpentCents = userInteractions.reduce((acc, b) => acc + b.amount_cents, 0);
+    const totalSpentCents = interactions.reduce((acc, i) => acc + i.amount_cents, 0);
 
-  // Filter unread outbid notifications that have 1-tap reclaim quotes
-  const reclaimAlerts = notifications
-    .filter((n) => n.kind === 'outbid' && !n.read_at && n.payload.reclaim_quote_id)
-    .slice(0, 5);
+    const reclaimAlerts = notifications
+      .filter((n) => n.kind === 'outbid' && !n.read_at && n.payload.reclaim_quote_id)
+      .slice(0, 5);
 
-  return NextResponse.json({
-    user,
-    posts: postsWithRank,
-    boosts: userInteractions,
-    notifications,
-    reclaim_alerts: reclaimAlerts,
-    metrics: {
-      total_posts: userPosts.length,
-      total_boosts: userInteractions.length,
-      total_spent_cents: totalSpentCents,
-      active_top_rank: postsWithRank.find((p) => p.rank !== null)?.rank || null,
-    },
-  });
+    return NextResponse.json({
+      user,
+      wallet,
+      posts: postsWithRank,
+      boosts: interactions,
+      notifications,
+      reclaim_alerts: reclaimAlerts,
+      metrics: {
+        total_posts: posts.length,
+        total_boosts: interactions.length,
+        total_spent_cents: totalSpentCents,
+        active_top_rank:
+          postsWithRank.reduce<number | null>(
+            (best, p) => (p.rank !== null && (best === null || p.rank < best) ? p.rank : best),
+            null
+          ),
+      },
+    });
+  } catch (err) {
+    return failure('me.dashboard.failed', err);
+  }
 }

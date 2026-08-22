@@ -10,7 +10,7 @@ interface BoardTableProps {
   onBoost: (post: RankedPostView) => void;
   onCounter: (post: RankedPostView) => void;
   onLikeExecuted?: () => void;
-  onInsufficientFunds?: () => void;
+  onInsufficientFunds?: (shortfallCents: number) => void;
   pulsingPostId?: string | null;
 }
 
@@ -73,6 +73,8 @@ export const BoardTable: React.FC<BoardTableProps> = ({
             return (
               <button
                 key={tab.key}
+                type="button"
+                aria-pressed={activeTab === tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
                   activeTab === tab.key
@@ -88,15 +90,17 @@ export const BoardTable: React.FC<BoardTableProps> = ({
         </div>
 
         {/* Search Bar */}
-        <div className="relative w-full sm:w-64">
+        <div className="flex w-full items-center gap-2 rounded-xl glass-card border border-white/10 px-2.5 py-1.5 focus-within:border-amber-400/50 sm:w-64">
+          <Search className="w-3.5 h-3.5 shrink-0 text-slate-400" aria-hidden />
           <input
-            type="text"
+            id="board-search"
+            type="search"
+            aria-label="Search stances, brands, and entities"
             placeholder="Search stances, brands, entities..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-card text-xs text-white placeholder-slate-500 border border-white/10 focus:outline-none focus:border-amber-400/50"
+            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs text-white placeholder-slate-500 outline-none"
           />
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
         </div>
       </div>
 
@@ -118,6 +122,7 @@ export const BoardTable: React.FC<BoardTableProps> = ({
           <div className="text-center py-16 glass-panel rounded-3xl border border-white/10">
             <p className="text-slate-400 text-sm">No stances match your search or filter.</p>
             <button
+              type="button"
               onClick={() => {
                 setSearchQuery('');
                 setActiveTab('all');

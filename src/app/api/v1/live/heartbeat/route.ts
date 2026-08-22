@@ -1,25 +1,57 @@
+import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { presenceTracker } from '@/lib/presence/presenceTracker';
+
+import { getPresenceCount, heartbeat } from '@/lib/db/store';
+import { assertSameOrigin, getSessionUser, presenceKeyFor } from '@/lib/session';
+import { getClientIp, rateLimiter } from '@/lib/rateLimit';
+import { badOrigin, failure, rateLimited } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json().catch(() => ({}));
-    const sessionId = body?.session_id || request.headers.get('x-session-id') || undefined;
-    const presence = presenceTracker.recordHeartbeat(sessionId);
+/**
+ * Presence key for a visitor with no session cookie yet.
+ *
+ * Hashed so the presence table never stores a raw address, and truncated
+ * because 128 bits is already far more than enough to keep two visitors
+ * apart for a 90-second window.
+ */
+function anonymousPresenceKey(request: NextRequest): string {
+  const ip = getClientIp(request);
+  const agent = request.headers.get('user-agent') || 'unknown';
+  return createHash('sha256').update(`presence:${ip}:${agent}`).digest('hex').slice(0, 32);
+}
 
-    return NextResponse.json({
-      live_visitors_now: presence.activeVisitors,
-      total_views: presence.totalViews,
-      status: 'active',
-    });
-  } catch (err: any) {
-    const presence = presenceTracker.getPresence();
-    return NextResponse.json({
-      live_visitors_now: presence.activeVisitors,
-      total_views: presence.totalViews,
-      status: 'active',
-    });
+/**
+ * POST /api/v1/live/heartbeat
+ *
+ * Records that someone is here, right now.
+ *
+ * Presence lives in Postgres rather than a per-process map: on a platform that
+ * runs many instances, an in-memory counter reports only the slice of visitors
+ * that happened to land on the same instance, which is why the previous
+ * implementation could never show a true number.
+ *
+ * The `session_id` a client sends is ignored for keying — a client-chosen id
+ * is trivially spoofable into inflating the count.
+ */
+export async function POST(request: NextRequest) {
+  if (!assertSameOrigin(request)) return badOrigin();
+
+  const ip = getClientIp(request);
+  const limit = rateLimiter.check(`hb_${ip}`, 12, 60000);
+  if (!limit.success) {
+    return rateLimited('Heartbeat rate limit exceeded.', limit.resetInMs);
+  }
+
+  try {
+    const session = await getSessionUser();
+    const key = session ? presenceKeyFor(session.id) : anonymousPresenceKey(request);
+
+    await heartbeat(key);
+    const liveVisitors = await getPresenceCount();
+
+    return NextResponse.json({ live_visitors_now: liveVisitors, status: 'active' });
+  } catch (err) {
+    return failure('presence.heartbeat.failed', err);
   }
 }

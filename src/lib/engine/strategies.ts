@@ -1,4 +1,4 @@
-import { IncrementStrategyType } from '../types';
+import type { IncrementStrategyType } from '../types';
 
 export interface StrategyConfig {
   fixed_inc_cents?: number;

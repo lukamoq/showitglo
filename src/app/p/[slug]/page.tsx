@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
@@ -9,22 +9,33 @@ import { CounterPostModal } from '@/components/post/CounterPostModal';
 import { ShareCardModal } from '@/components/post/ShareCardModal';
 import { HoldToLikeButton } from '@/components/interactions/HoldToLikeButton';
 import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
-import { RankedPostView, Interaction, PostBacker } from '@/lib/types';
-import { formatUSD, formatScore, formatCents, timeAgo } from '@/lib/utils';
+import { ReportPostControl } from '@/components/post/ReportPostControl';
+import { RankedPostView, Interaction } from '@/lib/types';
+import { formatScore, formatCents, timeAgo } from '@/lib/utils';
 import {
   Trophy,
   Zap,
   Share2,
   Users,
   Clock,
-  ShieldCheck,
+  User as UserIcon,
   ArrowLeft,
   Swords,
   Lock,
   Megaphone,
   CheckCircle2,
   Building2,
+  RefreshCw,
 } from 'lucide-react';
+import { apiGet, errorText, recommendedTopUpCents } from '@/components/system/api';
+import { useWallet } from '@/components/system/useWallet';
+
+/** Shape the posts endpoint returns for the aggregated backer roster. */
+interface BackerRow {
+  name: string;
+  totalCents: number;
+  boostCount: number;
+}
 
 export default function PostDetailPage() {
   const params = useParams();
@@ -32,62 +43,44 @@ export default function PostDetailPage() {
 
   const [post, setPost] = useState<RankedPostView | null>(null);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
-  const [backers, setBackers] = useState<PostBacker[]>([]);
+  const [backers, setBackers] = useState<BackerRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isBoostOpen, setIsBoostOpen] = useState(false);
   const [isCounterOpen, setIsCounterOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+  const [topUpRecommendation, setTopUpRecommendation] = useState<number | undefined>(undefined);
+  const [isUnderReview, setIsUnderReview] = useState(false);
 
-  // Brand Response Form State
-  const [isResponding, setIsResponding] = useState(false);
-  const [respTitle, setRespTitle] = useState('');
-  const [respBody, setRespBody] = useState('');
-  const [respAuthor, setRespAuthor] = useState('');
+  const { balanceCents, refresh: refreshWallet } = useWallet();
 
-  const fetchPost = async () => {
+  const fetchPost = useCallback(async () => {
     if (!slug) return;
-    try {
-      const res = await fetch(`/api/v1/posts/${slug}`);
-      const data = await res.json();
-      if (data.post) {
-        setPost(data.post);
-        setInteractions(data.boosts || []);
-        setBackers(data.top_backers || []);
-      }
-    } catch (err) {
-      console.error('Error fetching post:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const res = await apiGet<{
+      post: RankedPostView;
+      boosts: Interaction[];
+      top_backers: BackerRow[];
+      under_review?: boolean;
+    }>(`/api/v1/posts/${slug}`);
+    setIsLoading(false);
 
-  useEffect(() => {
-    fetchPost();
+    if (!res.ok || !res.data?.post) {
+      setLoadError(res.status === 404 ? null : errorText(res, 'This record could not be loaded.'));
+      setPost(null);
+      return;
+    }
+
+    setLoadError(null);
+    setIsUnderReview(res.data.under_review === true);
+    setPost(res.data.post);
+    setInteractions(res.data.boosts || []);
+    setBackers(res.data.top_backers || []);
   }, [slug]);
 
-  const handleBrandRespond = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!post || !respTitle.trim() || !respBody.trim()) return;
-
-    try {
-      const res = await fetch(`/api/v1/posts/${post.id}/respond`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: respTitle.trim(),
-          response_body: respBody.trim(),
-          author_display: respAuthor.trim() || `${post.demand_target || 'Brand'} Corporate`,
-        }),
-      });
-      if (res.ok) {
-        setIsResponding(false);
-        fetchPost();
-      }
-    } catch (err) {
-      console.error('Error publishing response:', err);
-    }
-  };
+  useEffect(() => {
+    void fetchPost();
+  }, [fetchPost]);
 
   if (isLoading) {
     return (
@@ -110,14 +103,69 @@ export default function PostDetailPage() {
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="panel rounded-card px-8 py-10 text-center max-w-md w-full animate-rise">
             <div className="kicker">Ledger lookup</div>
-            <h2 className="text-xl font-bold tracking-tight text-ink mt-2">Opinion Not Found</h2>
-            <p className="text-meta text-ink-3 mt-2">
-              This permanent URL does not exist or was removed.
+            <h2 className="text-xl font-bold tracking-tight text-ink mt-2">
+              {loadError ? 'Record unavailable' : 'Opinion Not Found'}
+            </h2>
+            <p role={loadError ? 'alert' : undefined} className="text-meta text-ink-3 mt-2">
+              {loadError ?? 'This permanent URL does not exist or was removed.'}
             </p>
-            <Link href="/" className="btn btn-ghost btn-sm mt-5">
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to Arena Board</span>
-            </Link>
+            <div className="mt-5 flex items-center justify-center gap-2">
+              {loadError && (
+                <button type="button" onClick={() => void fetchPost()} className="btn btn-ghost btn-sm">
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Retry</span>
+                </button>
+              )}
+              <Link href="/" className="btn btn-ghost btn-sm">
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Arena Board</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /**
+   * A post pulled off the board by community reports.
+   *
+   * The URL was already shared, so a 404 here would be a lie — and if the
+   * review ends in a restore, a lie we would have to take back. The honest
+   * answer is the one below: this exists, it is hidden, a human is looking at
+   * it. The title stays because it is what the link already promised; the
+   * body, the ledger and the roster do not, because they are what a reported
+   * post might be using to do harm.
+   */
+  if (isUnderReview) {
+    return (
+      <div className="min-h-screen text-ink flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="panel rounded-card px-8 py-10 max-w-lg w-full animate-rise">
+            <div className="kicker flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5" aria-hidden />
+              <span>Under review</span>
+            </div>
+
+            <h1 className="text-xl font-bold tracking-tight text-ink mt-2">{post.title}</h1>
+
+            <p className="text-dense text-ink-2 leading-relaxed mt-4">
+              This stance is temporarily hidden from the board while a moderator reviews reports
+              about it. Nothing has been deleted, and no decision has been made yet — if it is
+              cleared it returns with its score and ledger intact.
+            </p>
+
+            <div className="mt-6 flex items-center gap-2">
+              <Link href="/" className="btn btn-ghost btn-sm">
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Arena Board</span>
+              </Link>
+              <button type="button" onClick={() => void fetchPost()} className="btn btn-ghost btn-sm">
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Check again</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -162,7 +210,7 @@ export default function PostDetailPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="chip text-steel">
-                      <ShieldCheck className="w-3 h-3" />
+                      <UserIcon className="w-3 h-3" />
                       {post.author_display}
                     </span>
 
@@ -188,11 +236,19 @@ export default function PostDetailPage() {
                 <HoldToLikeButton
                   postId={post.id}
                   initialLikes={post.like_units}
-                  onLikeExecuted={fetchPost}
-                  onInsufficientFunds={() => setIsTopUpOpen(true)}
+                  onLikeExecuted={() => {
+                    void fetchPost();
+                    void refreshWallet();
+                  }}
+                  onInsufficientFunds={(shortfallCents) => {
+                    setTopUpRecommendation(recommendedTopUpCents(shortfallCents));
+                    setIsTopUpOpen(true);
+                  }}
+                  onLikeCapReached={() => setIsBoostOpen(true)}
                 />
 
                 <button
+                  type="button"
                   onClick={() => setIsCounterOpen(true)}
                   className="btn btn-ghost btn-sm text-down hover:border-down/40"
                   title="Launch counter-opinion rebuttal"
@@ -202,6 +258,7 @@ export default function PostDetailPage() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setIsShareOpen(true)}
                   className="btn btn-ghost btn-sm"
                   title="Generate a shareable flex card"
@@ -210,10 +267,12 @@ export default function PostDetailPage() {
                   <span>Flex Card</span>
                 </button>
 
-                <button onClick={() => setIsBoostOpen(true)} className="btn btn-gold btn-sm">
+                <button type="button" onClick={() => setIsBoostOpen(true)} className="btn btn-gold btn-sm">
                   <Zap className="w-3.5 h-3.5" />
                   <span>Boost</span>
                 </button>
+
+                <ReportPostControl postId={post.id} />
               </div>
             </div>
 
@@ -275,68 +334,17 @@ export default function PostDetailPage() {
                 <p className="text-[15px] text-ink-2 leading-relaxed">{post.brand_response.body}</p>
               </div>
             ) : post.kind === 'demand' && (
-              <div className="my-6 sunken rounded-card px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-meta text-ink-2">
-                  <Building2 className="w-4 h-4 text-ink-3" aria-hidden />
-                  <span>
-                    Represent {post.demand_target || 'this company'}? Answer this consumer mandate on
-                    the public record.
-                  </span>
-                </div>
-                <button onClick={() => setIsResponding(true)} className="btn btn-ghost btn-xs shrink-0">
-                  Official Response
-                </button>
+              /* There is no self-serve brand verification yet, so there is no
+                 "post as this company" button — anyone could press it. Official
+                 responses are published only through a verified channel. */
+              <div className="my-6 sunken rounded-card px-4 py-3.5 flex items-center gap-2 text-meta text-ink-2">
+                <Building2 className="w-4 h-4 text-ink-3 shrink-0" aria-hidden />
+                <span>
+                  No official response from {post.demand_target || 'this company'} yet. Responses are
+                  published only after ShowItGlo verifies the responder, so nothing here can be posted
+                  in a company&apos;s name by someone else.
+                </span>
               </div>
-            )}
-
-            {/* If Brand is responding */}
-            {isResponding && (
-              <form
-                onSubmit={handleBrandRespond}
-                className="my-6 card rounded-card p-5 sm:p-6 space-y-4 animate-rise"
-              >
-                <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-ink-3" aria-hidden />
-                  <span>Publish official brand statement</span>
-                </h3>
-
-                <div>
-                  <label className="kicker block mb-1.5">Response headline</label>
-                  <input
-                    type="text"
-                    required
-                    value={respTitle}
-                    onChange={(e) => setRespTitle(e.target.value)}
-                    placeholder="e.g. Official Update: Batch Testing Approved"
-                    className="field"
-                  />
-                </div>
-
-                <div>
-                  <label className="kicker block mb-1.5">Official response message</label>
-                  <textarea
-                    rows={3}
-                    required
-                    value={respBody}
-                    onChange={(e) => setRespBody(e.target.value)}
-                    placeholder="Explain your company's official stance..."
-                    className="field resize-none"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsResponding(false)}
-                    className="btn btn-ghost btn-sm"
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-ghost btn-sm text-gold-text hover:border-gold/40">
-                    Publish to Permanent Ledger
-                  </button>
-                </div>
-              </form>
             )}
 
             {/* Dual Metrics Bar */}
@@ -384,9 +392,9 @@ export default function PostDetailPage() {
 
               {backers.length > 0 ? (
                 <div className="divide-y divide-line">
-                  {backers.map((backer: any, idx) => (
+                  {backers.map((backer, idx) => (
                     <div
-                      key={idx}
+                      key={`${backer.name}-${idx}`}
                       className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-white/[0.04]"
                     >
                       <div className="flex items-center gap-3 min-w-0">
@@ -395,16 +403,16 @@ export default function PostDetailPage() {
                         </div>
                         <div className="min-w-0">
                           <span className="block text-dense font-semibold text-ink truncate">
-                            {backer.name || 'Anonymous Backer'}
+                            {backer.name || 'Anonymous'}
                           </span>
-                          <span className="micro-label text-ink-3">
-                            {backer.boostCount || 1} contribution(s)
+                          <span className="micro-label text-ink-3 tnum">
+                            {backer.boostCount ?? 0} contribution{backer.boostCount === 1 ? '' : 's'}
                           </span>
                         </div>
                       </div>
 
                       <span className="text-dense font-semibold text-gold-text tnum shrink-0">
-                        {formatCents(backer.totalCents || 100)}
+                        {formatCents(backer.totalCents ?? 0)}
                       </span>
                     </div>
                   ))}
@@ -468,14 +476,17 @@ export default function PostDetailPage() {
         post={post}
         isOpen={isBoostOpen}
         onClose={() => setIsBoostOpen(false)}
-        onSuccess={() => fetchPost()}
+        onSuccess={() => {
+          void fetchPost();
+          void refreshWallet();
+        }}
       />
 
       <CounterPostModal
         parentPost={post}
         isOpen={isCounterOpen}
         onClose={() => setIsCounterOpen(false)}
-        onCounterCreated={() => fetchPost()}
+        onCounterCreated={() => void fetchPost()}
       />
 
       <ShareCardModal
@@ -486,12 +497,16 @@ export default function PostDetailPage() {
 
       <WalletTopUpModal
         isOpen={isTopUpOpen}
-        onClose={() => setIsTopUpOpen(false)}
-        currentBalanceCents={0}
+        onClose={() => {
+          setIsTopUpOpen(false);
+          void refreshWallet();
+        }}
+        currentBalanceCents={balanceCents}
         onTopUpSuccess={() => {
-          fetchPost();
+          void refreshWallet();
           setIsTopUpOpen(false);
         }}
+        recommendedCents={topUpRecommendation}
       />
     </div>
   );

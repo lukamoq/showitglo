@@ -34,7 +34,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   compress: true,
-  output: 'standalone',
+  ...(process.env.DOCKER_BUILD === '1' ? { output: 'standalone' } : {}),
   async headers() {
     return [
       {

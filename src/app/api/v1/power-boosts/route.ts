@@ -1,46 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/db';
-import '@/lib/db/seed';
 
+import { getQuote, recordInteraction } from '@/lib/db/store';
+import { assertSameOrigin, getOrCreateSessionUser } from '@/lib/session';
+import {
+  badOrigin,
+  badRequest,
+  enumField,
+  failure,
+  notFound,
+  optionalText,
+  readIdempotencyKey,
+  readJsonBody,
+} from '@/lib/http';
+
+export const dynamic = 'force-dynamic';
+
+const VISIBILITIES = ['alias', 'anonymous'] as const;
+
+/**
+ * POST /api/v1/power-boosts
+ *
+ * Settles a power boost against a quote issued earlier by `POST /quotes`.
+ *
+ * The amount comes from the stored quote and nothing else — there is no
+ * `amount_cents` input to tamper with, and `getQuote` returns null once the
+ * five-minute window closes, so a stale price cannot be replayed after the
+ * board has moved underneath it.
+ */
 export async function POST(request: NextRequest) {
+  if (!assertSameOrigin(request)) return badOrigin();
+
+  const idempotency = readIdempotencyKey(request);
+  if (!idempotency.ok) return idempotency.response;
+
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
+
+  const quoteId = optionalText(body.quote_id, { field: 'quote_id', max: 200 });
+  if (!quoteId.ok) return quoteId.response;
+  if (!quoteId.value) return badRequest('quote_id is required.', 'INVALID_FIELD', { field: 'quote_id' });
+
+  const visibility = enumField<(typeof VISIBILITIES)[number]>(body.visibility, {
+    field: 'visibility',
+    allowed: VISIBILITIES,
+    fallback: 'alias',
+  });
+  if (!visibility.ok) return visibility.response;
+
+  const payerDisplay = optionalText(body.payer_display, { field: 'payer_display', max: 50 });
+  if (!payerDisplay.ok) return payerDisplay.response;
+
   try {
-    const body = await request.json();
-    const { quote_id, user_id = 'usr_marc', payer_display } = body;
+    const user = await getOrCreateSessionUser();
 
-    if (!quote_id) {
-      return NextResponse.json({ error: 'quote_id is required' }, { status: 400 });
-    }
+    const quote = await getQuote(quoteId.value);
+    if (!quote) return notFound('Quote not found or expired. Please fetch a fresh price.', 'QUOTE_EXPIRED');
 
-    const quote = db.getQuote(quote_id);
-    if (!quote) {
-      return NextResponse.json({ error: 'Quote not found or expired' }, { status: 404 });
-    }
-
-    if (new Date(quote.expires_at).getTime() < Date.now()) {
-      return NextResponse.json({ error: 'Quote expired. Please fetch a fresh price.' }, { status: 410 });
-    }
-
-    const wallet = db.getWallet(user_id);
-    if (wallet.balance_cents < quote.amount_cents) {
-      const shortfallCents = quote.amount_cents - wallet.balance_cents;
-      return NextResponse.json({
-        error: 'insufficient_wallet_balance',
-        message: `Wallet balance is $${(wallet.balance_cents / 100).toFixed(2)}. You need $${(shortfallCents / 100).toFixed(2)} more to execute this power boost.`,
-        current_balance_cents: wallet.balance_cents,
-        required_cents: quote.amount_cents,
-        shortfall_cents: shortfallCents,
-      }, { status: 402 });
-    }
-
-    const result = db.recordInteraction({
+    const result = await recordInteraction({
       postId: quote.post_id,
-      userId: user_id,
+      userId: user.id,
       kind: 'power',
-      units: quote.amount_cents,
+      units: 1,
       amountCents: quote.amount_cents,
+      visibility: visibility.value,
       quoteId: quote.quote_id,
       targetRank: quote.target_rank,
-      payerDisplay: payer_display || 'Marc (ShipFast)',
+      payerDisplay: payerDisplay.value || user.alias || 'Anonymous Backer',
+      idempotencyKey: idempotency.key,
     });
 
     return NextResponse.json({
@@ -50,8 +77,9 @@ export async function POST(request: NextRequest) {
       new_rank: result.newRank,
       new_balance_cents: result.wallet.balance_cents,
       displaced_count: result.displacedPosts.length,
+      replayed: result.replayed,
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return failure('power_boost.failed', err);
   }
 }

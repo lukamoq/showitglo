@@ -190,7 +190,11 @@ export interface Report {
   id: string;
   post_id: string;
   reporter_id: string | null;
-  reason: 'illegal' | 'spam' | 'harassment' | 'ip' | 'csam' | 'other';
+  /**
+   * The public form offers the first six. `ip` and `csam` are legacy values
+   * kept so rows filed before the form existed still parse.
+   */
+  reason: 'illegal' | 'harassment' | 'spam' | 'scam' | 'private_person' | 'other' | 'ip' | 'csam';
   detail: string | null;
   status: 'open' | 'reviewing' | 'actioned' | 'dismissed';
   created_at: string;
@@ -250,12 +254,6 @@ export interface FightPair {
   total_backers: number;
   lead_changes_24h: number;
   updated_at: string;
-}
-
-export interface WarEvent {
-  post_a: { id: string; title: string; rank: number; score: number };
-  post_b: { id: string; title: string; rank: number; score: number };
-  flip_count_24h: number;
 }
 
 export interface Debate {

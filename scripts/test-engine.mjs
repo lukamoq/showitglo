@@ -1,110 +1,203 @@
+#!/usr/bin/env node
+
 /**
- * ShowItGlo Engine Test Suite
- * Mathematical Invariant Basis, Strategy Rules, and Displacement Logic Verification
+ * ShowItGlo — scoring engine tests.
+ *
+ * These run against the SHIPPED source in `src/lib/engine`, not a copy of the
+ * formulas. Node's built-in TypeScript type stripping imports `decay.ts`
+ * directly; `strategies.ts` is loaded through a two-line shim only because its
+ * single import is a bare-specifier *type* import that ESM cannot resolve, and
+ * the shim fails loudly if that file ever grows a real dependency.
+ *
+ * The property under test throughout is the invariant basis: a boost is stored
+ * as `A * 2^((t - T0) / H)` so that the *ordering* of posts never depends on
+ * when the board is evaluated. Get that wrong and the leaderboard silently
+ * reshuffles itself between two page loads.
+ *
+ * Usage: node scripts/test-engine.mjs   (npm run test:math)
  */
 
-import assert from 'assert';
+import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-function calculateStoredDelta(amountCents, boostTime, epochDate, halfLifeHours = 168) {
-  const t = new Date(boostTime).getTime();
-  const t0 = new Date(epochDate).getTime();
-  const halfLifeMs = halfLifeHours * 3600 * 1000;
-  const exponent = (t - t0) / halfLifeMs;
-  return amountCents * Math.pow(2, exponent);
+// Importing a .ts file from a package without "type": "module" is legal but
+// noisy; the warning says nothing a reader of this file needs to know.
+process.removeAllListeners('warning');
+process.on('warning', (warning) => {
+  if (warning.name === 'MODULE_TYPELESS_PACKAGE_JSON' || warning.code === 'MODULE_TYPELESS_PACKAGE_JSON') return;
+  console.warn(warning);
+});
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(__dirname, '..');
+const ENGINE_DIR = join(REPO_ROOT, 'src', 'lib', 'engine');
+
+// Importing .ts directly needs Node's unflagged type stripping (22.18+ / 23.6+).
+// Fail with a sentence rather than ERR_UNKNOWN_FILE_EXTENSION.
+{
+  const [major, minor] = process.versions.node.split('.').map(Number);
+  const supported = major >= 24 || (major === 23 && minor >= 6) || (major === 22 && minor >= 18);
+  if (!supported) {
+    console.error(
+      `\nThis suite imports src/lib/engine/*.ts directly, which needs Node 22.18+ or 23.6+ ` +
+        `(TypeScript type stripping). You are on ${process.versions.node}.\n`
+    );
+    process.exit(1);
+  }
 }
 
-function calculateDecayedScore(storedScore, currentTime, epochDate, halfLifeHours = 168) {
-  const tNow = new Date(currentTime).getTime();
-  const t0 = new Date(epochDate).getTime();
-  const halfLifeMs = halfLifeHours * 3600 * 1000;
-  const decayFactor = Math.pow(2, -(tNow - t0) / halfLifeMs);
-  return (storedScore * decayFactor) / 100;
+let passed = 0;
+let failed = 0;
+let scratch = null;
+
+function check(name, fn) {
+  try {
+    fn();
+    passed += 1;
+    console.log(`  \x1b[32m✓\x1b[0m ${name}`);
+  } catch (err) {
+    failed += 1;
+    console.log(`  \x1b[31m✗ ${name}\x1b[0m`);
+    console.log(`     ${err.message}`);
+  }
 }
 
-function rebaseStoredScore(storedScore, oldEpochDate, newEpochDate, halfLifeHours = 168) {
-  const t0 = new Date(oldEpochDate).getTime();
-  const t1 = new Date(newEpochDate).getTime();
-  const halfLifeMs = halfLifeHours * 3600 * 1000;
-  const factor = Math.pow(2, -(t1 - t0) / halfLifeMs);
-  return storedScore * factor;
+/**
+ * strategies.ts uses `import type`, which Node's TypeScript stripper erases
+ * natively — the module loads directly, same as decay.ts. If it ever gains a
+ * runtime (non-type) import of ../types, this direct import will fail loudly
+ * with a resolution error and this loader needs a real transpile step.
+ */
+async function loadStrategies() {
+  return import(pathToFileURL(join(ENGINE_DIR, 'strategies.ts')).href);
 }
 
-console.log('🧪 Running ShowItGlo Mathematical Engine Tests...\n');
+console.log('\n\x1b[1mShowItGlo — scoring engine tests\x1b[0m');
+console.log('  source: src/lib/engine/{decay,strategies}.ts\n');
 
-// TEST 1: Invariant-basis Ordering Test
-console.log('Test 1: Invariant-basis score ordering across multiple future timestamps...');
-const T0 = new Date('2026-08-01T00:00:00Z').toISOString();
-const halfLifeHours = 168; // 7 days
+const decay = await import(pathToFileURL(join(ENGINE_DIR, 'decay.ts')).href);
+const { calculateStoredDelta, calculateDecayedScore, rebaseStoredScore, dollarsNeededForScore } = decay;
 
-// Post A boosted $100 on Day 1
-const tA = new Date('2026-08-01T12:00:00Z').toISOString();
-const deltaA = calculateStoredDelta(10000, tA, T0, halfLifeHours);
+const { getRequiredScoreToDisplace } = await loadStrategies();
 
-// Post B boosted $60 on Day 5 (newer, so $60 fresh might be higher or lower depending on decay)
-const tB = new Date('2026-08-05T12:00:00Z').toISOString();
-const deltaB = calculateStoredDelta(6000, tB, T0, halfLifeHours);
+const T0 = '2026-08-01T00:00:00Z';
+const HALF_LIFE = 168; // 7 days
 
-// Test across Day 7, Day 14, Day 30, Day 365
-const evaluationTimes = [
-  '2026-08-07T00:00:00Z',
-  '2026-08-14T00:00:00Z',
-  '2026-09-01T00:00:00Z',
-  '2027-08-01T00:00:00Z',
-];
+// --------------------------------------------------------------------------
+console.log('1. Invariant-basis ordering');
 
+// $100 early vs $60 later: whichever ranks higher must rank higher forever.
+const deltaA = calculateStoredDelta(10000, '2026-08-01T12:00:00Z', T0, HALF_LIFE);
+const deltaB = calculateStoredDelta(6000, '2026-08-05T12:00:00Z', T0, HALF_LIFE);
 const storedOrder = deltaA > deltaB;
 
-for (const evalTime of evaluationTimes) {
-  const scoreA = calculateDecayedScore(deltaA, evalTime, T0, halfLifeHours);
-  const scoreB = calculateDecayedScore(deltaB, evalTime, T0, halfLifeHours);
-  const decayedOrder = scoreA > scoreB;
-
-  assert.strictEqual(
-    storedOrder,
-    decayedOrder,
-    `Ordering mismatch at ${evalTime}! Stored: ${storedOrder}, Decayed: ${decayedOrder}`
-  );
-  console.log(`  ✓ Evaluated at ${evalTime}: Post A ($${scoreA.toFixed(2)}) vs Post B ($${scoreB.toFixed(2)}) -> Ordering preserved`);
+for (const at of ['2026-08-07T00:00:00Z', '2026-08-14T00:00:00Z', '2026-09-01T00:00:00Z', '2027-08-01T00:00:00Z']) {
+  check(`ordering is stable when evaluated at ${at}`, () => {
+    const scoreA = calculateDecayedScore(deltaA, at, T0, HALF_LIFE);
+    const scoreB = calculateDecayedScore(deltaB, at, T0, HALF_LIFE);
+    assert.equal(scoreA > scoreB, storedOrder, `ordering flipped at ${at} (A=${scoreA}, B=${scoreB})`);
+  });
 }
 
-// TEST 2: Exact 7-Day Half Life Decay
-console.log('\nTest 2: Exact 7-day half life decay (Score must equal 50% after exactly 1 half-life)...');
-const boostTime = '2026-08-01T00:00:00Z';
-const exactOneHalfLifeLater = '2026-08-08T00:00:00Z';
-const delta100 = calculateStoredDelta(10000, boostTime, T0, halfLifeHours);
+check('a later, larger boost still outranks an earlier, smaller one', () => {
+  const early = calculateStoredDelta(100, '2026-08-01T00:00:00Z', T0, HALF_LIFE);
+  const late = calculateStoredDelta(1000, '2026-08-20T00:00:00Z', T0, HALF_LIFE);
+  assert.ok(late > early, 'a $10 boost must outrank a $1 boost placed 19 days earlier');
+});
 
-const initialScore = calculateDecayedScore(delta100, boostTime, T0, halfLifeHours);
-const halfScore = calculateDecayedScore(delta100, exactOneHalfLifeLater, T0, halfLifeHours);
+// --------------------------------------------------------------------------
+console.log('\n2. Half-life decay');
 
-assert.strictEqual(Math.round(initialScore), 100, 'Initial score should be $100');
-assert.strictEqual(Math.round(halfScore), 50, 'Score after 7 days should be $50');
-console.log(`  ✓ Initial: $${initialScore.toFixed(2)} -> 7 days later: $${halfScore.toFixed(2)} (Exact 50.00% decay)`);
+check('a score halves after exactly one half-life', () => {
+  const delta = calculateStoredDelta(10000, T0, T0, HALF_LIFE);
+  const initial = calculateDecayedScore(delta, T0, T0, HALF_LIFE);
+  const later = calculateDecayedScore(delta, '2026-08-08T00:00:00Z', T0, HALF_LIFE);
+  assert.equal(Math.round(initial), 100, `$100 boost should read $100 immediately, read $${initial}`);
+  assert.equal(Math.round(later), 50, `should read $50 after 7 days, read $${later}`);
+});
 
-// TEST 3: Strategy Math
-console.log('\nTest 3: Increment Strategy Calculations...');
-const percentStrategy = (s, pct = 0.10, floor = 0.50) => Number((s + Math.max(s * pct, floor)).toFixed(2));
-const fixedStrategy = (s, inc = 0.10) => Number((s + inc).toFixed(2));
-const expoStrategy = (s, mult = 2.0) => Number((s * mult).toFixed(2));
+check('a score quarters after two half-lives', () => {
+  const delta = calculateStoredDelta(10000, T0, T0, HALF_LIFE);
+  const later = calculateDecayedScore(delta, '2026-08-15T00:00:00Z', T0, HALF_LIFE);
+  assert.equal(Math.round(later), 25, `should read $25 after 14 days, read $${later}`);
+});
 
-assert.strictEqual(percentStrategy(100.0), 110.0, '10% of $100 should be $110');
-assert.strictEqual(percentStrategy(2.0), 2.50, '10% of $2.00 is $0.20 which is below $0.50 floor -> should be $2.50');
-assert.strictEqual(fixedStrategy(100.0), 100.10, 'Fixed +$0.10 on $100 should be $100.10');
-assert.strictEqual(expoStrategy(100.0), 200.0, 'Expo x2 on $100 should be $200.00');
-console.log('  ✓ Percent, Fixed, and Exponential strategies validated.');
+check('a zero or negative stored score decays to exactly zero', () => {
+  assert.equal(calculateDecayedScore(0, '2026-08-08T00:00:00Z', T0, HALF_LIFE), 0);
+  assert.equal(calculateDecayedScore(-5, '2026-08-08T00:00:00Z', T0, HALF_LIFE), 0);
+});
 
-// TEST 4: Epoch Rebase Invariance
-console.log('\nTest 4: Epoch Rebase Invariance...');
-const T1 = new Date('2026-08-15T00:00:00Z').toISOString();
-const rebasedDelta = rebaseStoredScore(deltaA, T0, T1, halfLifeHours);
+// --------------------------------------------------------------------------
+console.log('\n3. Displacement strategies');
 
-const scoreBeforeRebase = calculateDecayedScore(deltaA, '2026-08-20T00:00:00Z', T0, halfLifeHours);
-const scoreAfterRebase = calculateDecayedScore(rebasedDelta, '2026-08-20T00:00:00Z', T1, halfLifeHours);
+check('percent adds 10% above the holder', () => {
+  assert.equal(getRequiredScoreToDisplace('percent', 100.0), 110.0);
+});
 
-assert.strictEqual(
-  scoreBeforeRebase.toFixed(6),
-  scoreAfterRebase.toFixed(6),
-  'Decayed score before and after rebase must be mathematically identical!'
-);
-console.log(`  ✓ Score with old epoch: $${scoreBeforeRebase.toFixed(4)} == Score with new epoch: $${scoreAfterRebase.toFixed(4)}`);
+check('percent respects the $0.50 floor on small scores', () => {
+  // 10% of $2.00 is $0.20, below the floor, so the jump is $0.50.
+  assert.equal(getRequiredScoreToDisplace('percent', 2.0), 2.5);
+});
 
-console.log('\n🎉 ALL MATHEMATICAL TESTS PASSED SUCCESSFULLY!\n');
+check('percent honours an overridden config', () => {
+  assert.equal(getRequiredScoreToDisplace('percent', 100.0, { pct: 0.25, floor_cents: 50 }), 125.0);
+});
+
+check('fixed adds a flat $0.10', () => {
+  assert.equal(getRequiredScoreToDisplace('fixed', 100.0), 100.1);
+});
+
+check('expo doubles the holder score', () => {
+  assert.equal(getRequiredScoreToDisplace('expo', 100.0), 200.0);
+});
+
+check('an unknown strategy falls back to percent rather than throwing', () => {
+  assert.equal(getRequiredScoreToDisplace('nonsense', 100.0), 110.0);
+});
+
+// --------------------------------------------------------------------------
+console.log('\n4. Reclaim pricing');
+
+check('dollars needed is the gap, rounded up to the cent', () => {
+  assert.equal(dollarsNeededForScore(110.0, 100.0), 10.0);
+  assert.equal(dollarsNeededForScore(100.005, 100.0), 0.01);
+});
+
+check('a post already above the target needs nothing', () => {
+  assert.equal(dollarsNeededForScore(100.0, 150.0), 0);
+});
+
+// --------------------------------------------------------------------------
+console.log('\n5. Epoch rebase invariance');
+
+check('rebasing the epoch does not change any displayed score', () => {
+  const T1 = '2026-08-15T00:00:00Z';
+  const rebased = rebaseStoredScore(deltaA, T0, T1, HALF_LIFE);
+  const before = calculateDecayedScore(deltaA, '2026-08-20T00:00:00Z', T0, HALF_LIFE);
+  const after = calculateDecayedScore(rebased, '2026-08-20T00:00:00Z', T1, HALF_LIFE);
+  assert.equal(before.toFixed(6), after.toFixed(6), `rebase changed the score: ${before} vs ${after}`);
+});
+
+check('rebasing preserves relative ordering', () => {
+  const T1 = '2026-08-15T00:00:00Z';
+  const rebasedA = rebaseStoredScore(deltaA, T0, T1, HALF_LIFE);
+  const rebasedB = rebaseStoredScore(deltaB, T0, T1, HALF_LIFE);
+  assert.equal(rebasedA > rebasedB, storedOrder, 'rebase reordered the board');
+});
+
+// --------------------------------------------------------------------------
+
+if (scratch) rmSync(scratch, { recursive: true, force: true });
+
+console.log(`\n${'═'.repeat(68)}`);
+if (failed === 0) {
+  console.log(`\x1b[32m✓ ${passed}/${passed} engine checks passed\x1b[0m`);
+  console.log(`${'═'.repeat(68)}\n`);
+  process.exit(0);
+}
+console.log(`\x1b[31m✗ ${failed} of ${passed + failed} engine checks FAILED\x1b[0m`);
+console.log(`${'═'.repeat(68)}\n`);
+process.exit(1);

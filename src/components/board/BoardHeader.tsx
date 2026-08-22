@@ -88,7 +88,7 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <button onClick={onOpenCreate} className="btn btn-gold">
+              <button type="button" onClick={onOpenCreate} className="btn btn-gold">
                 Take the stage — 1¢
               </button>
               <a href="#board-table" className="btn btn-ghost">
@@ -148,8 +148,9 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
             </div>
             <h3 className="text-sm font-semibold text-ink mt-2.5">Change Things</h3>
             <p className="text-dense text-ink-3 leading-relaxed mt-1.5">
-              Petitions get ignored because signatures are free. When 15,000 paying consumers rally
-              $5,000+ behind a demand, brands are forced to answer on the record.
+              Petitions get ignored because signatures are free. Here a demand carries the money
+              behind it, publicly and permanently — the bigger the crowd, the harder it is to
+              pretend it isn&apos;t there.
             </p>
           </div>
         </div>

@@ -34,12 +34,14 @@ export default function ErrorBoundary({
               Something went wrong
             </h1>
             <p className="text-sm text-ink-2 leading-relaxed">
-              An unexpected error occurred while loading this view. The rest of the market engine is operating normally.
+              An unexpected error occurred while loading this view. Nothing you did was charged or
+              recorded — retrying is safe.
             </p>
           </div>
 
           <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
             <button
+              type="button"
               onClick={() => reset()}
               className="btn btn-gold w-full sm:w-auto"
             >

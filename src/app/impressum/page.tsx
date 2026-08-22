@@ -99,10 +99,10 @@ export default function ImpressumPage() {
               <dd className="mt-1 sm:mt-0">
                 <span className="block text-dense font-semibold">
                   <a
-                    href="mailto:info@momentumq.com"
+                    href="mailto:contact@showitglo.com"
                     className="text-gold-text underline underline-offset-4 hover:text-gold-bright transition-colors"
                   >
-                    info@momentumq.com
+                    contact@showitglo.com
                   </a>
                 </span>
                 <span className="block text-meta text-ink-3">
@@ -144,10 +144,10 @@ export default function ImpressumPage() {
           <p>
             For legal inquiries, notice of rights violations, or law enforcement requests, please contact our legal desk at{' '}
             <a
-              href="mailto:info@momentumq.com"
+              href="mailto:contact@showitglo.com"
               className="text-gold-text underline underline-offset-4 hover:text-gold-bright transition-colors"
             >
-              info@momentumq.com
+              contact@showitglo.com
             </a>.
           </p>
         </div>

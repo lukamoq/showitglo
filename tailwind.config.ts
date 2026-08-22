@@ -36,9 +36,9 @@ const config: Config = {
         foreground: "#F6F7FA",
       },
       fontFamily: {
-        sans: ["Figtree", "var(--font-figtree)", "ui-sans-serif", "system-ui", "sans-serif"],
-        display: ["Figtree", "var(--font-figtree)", "ui-sans-serif", "system-ui", "sans-serif"],
-        mono: ["Figtree", "var(--font-figtree)", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ['Figtree', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'sans-serif'],
+        display: ['Figtree', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'sans-serif'],
+        mono: ['Figtree', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       fontSize: {
         micro: ["10px", { lineHeight: "14px" }],

@@ -12,7 +12,7 @@ interface BoardRowProps {
   onBoost: (post: RankedPostView) => void;
   onCounter: (post: RankedPostView) => void;
   onLikeExecuted?: () => void;
-  onInsufficientFunds?: () => void;
+  onInsufficientFunds?: (shortfallCents: number) => void;
   isPulsing?: boolean;
 }
 
@@ -147,9 +147,11 @@ export const BoardRow: React.FC<BoardRowProps> = ({
               initialLikes={post.like_units}
               onLikeExecuted={onLikeExecuted}
               onInsufficientFunds={onInsufficientFunds}
+              onLikeCapReached={() => onBoost(post)}
             />
 
             <button
+              type="button"
               onClick={() => onBoost(post)}
               className="btn btn-ghost btn-xs text-gold-text hover:border-gold/40"
               title="Boost or power-boost"
@@ -159,6 +161,7 @@ export const BoardRow: React.FC<BoardRowProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => onCounter(post)}
               className="btn btn-ghost btn-xs text-down hover:border-down/40"
               title="Launch counter-opinion rebuttal"

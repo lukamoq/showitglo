@@ -20,6 +20,12 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# next.config.ts emits `output: 'standalone'` only under this flag, because the
+# Vercel deployment target needs the default (non-standalone) output. The runner
+# stage below copies .next/standalone, so without this the image builds and then
+# fails at startup with "Cannot find module '/app/server.js'".
+ENV DOCKER_BUILD=1
+
 RUN npm run build
 
 # 4. Production Runner Stage

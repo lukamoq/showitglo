@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { ShowItGloLogo } from '../brand/ShowItGloLogo';
+import { RecoverWalletLink } from '../wallet/RecoverWalletLink';
 
 export const Footer: React.FC = () => {
   return (
@@ -28,6 +29,9 @@ export const Footer: React.FC = () => {
             <li><Link href="/debates" className="text-dense text-ink-3 hover:text-ink transition-colors">Standing Debates &amp; Rosters</Link></li>
             <li><Link href="/wars" className="text-dense text-ink-3 hover:text-ink transition-colors">Live Counter Fights</Link></li>
             <li><Link href="/insights" className="text-dense text-ink-3 hover:text-ink transition-colors">B2B Insights API</Link></li>
+            {/* Reachable without a session on purpose — someone who lost their
+                cookie has no dashboard to find this on. */}
+            <li><RecoverWalletLink /></li>
           </ul>
         </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { InsightDemandAggregate, ApiKey } from '@/lib/types';
 import { formatCents } from '@/lib/utils';
@@ -16,59 +16,87 @@ import {
   Plus,
   Flame,
   Swords,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
+import { apiGet, apiPost, errorText } from '@/components/system/api';
+
+/** Stored keys come back as metadata only — the token itself is shown once. */
+type ApiKeyMetadata = Omit<ApiKey, 'key_token'>;
+
+interface DebateAggregate {
+  question: string;
+  total_money_raised_cents: number;
+  total_distinct_backers: number;
+  faction_breakdown: Array<{ faction: string; percentage: number; total_cents: number; backers_count: number }>;
+}
 
 export default function InsightsPage() {
   const [demands, setDemands] = useState<InsightDemandAggregate[]>([]);
-  const [debatesData, setDebatesData] = useState<any[]>([]);
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [debatesData, setDebatesData] = useState<DebateAggregate[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKeyMetadata[]>([]);
   const [isGeneratingKey, setIsGeneratingKey] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<'starter' | 'growth' | 'enterprise'>('growth');
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [newToken, setNewToken] = useState<string | null>(null);
+  const [keysError, setKeysError] = useState<string | null>(null);
+  const [aggregatesLocked, setAggregatesLocked] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const fetchInsights = async () => {
-    try {
-      const [resDemands, resDebates, resKeys] = await Promise.all([
-        fetch('/api/v1/insights/demands'),
-        fetch('/api/v1/insights/debates'),
-        fetch('/api/v1/insights/keys?user_id=usr_marc'),
-      ]);
-      const dataDemands = await resDemands.json();
-      const dataDebates = await resDebates.json();
-      const dataKeys = await resKeys.json();
+  const keyInFlightRef = useRef(false);
 
-      if (dataDemands.data) setDemands(dataDemands.data);
-      if (dataDebates.data) setDebatesData(dataDebates.data);
-      if (dataKeys.keys) setApiKeys(dataKeys.keys);
-    } catch (err) {
-      console.error('Error loading insights:', err);
+  const fetchInsights = useCallback(async () => {
+    const [resDemands, resDebates, resKeys] = await Promise.all([
+      apiGet<{ data: InsightDemandAggregate[] }>('/api/v1/insights/demands'),
+      apiGet<{ data: DebateAggregate[] }>('/api/v1/insights/debates'),
+      apiGet<{ keys: ApiKeyMetadata[] }>('/api/v1/insights/keys'),
+    ]);
+
+    // The aggregate endpoints are bearer-authenticated; a browser session has no
+    // key, so 401 here is the expected state, not an error to shout about.
+    setAggregatesLocked(resDemands.status === 401 || resDebates.status === 401);
+    if (resDemands.ok && resDemands.data?.data) setDemands(resDemands.data.data);
+    if (resDebates.ok && resDebates.data?.data) setDebatesData(resDebates.data.data);
+
+    if (resKeys.ok && resKeys.data?.keys) {
+      setApiKeys(resKeys.data.keys);
+      setKeysError(null);
+    } else {
+      setKeysError(errorText(resKeys, 'Your API keys could not be loaded.'));
     }
-  };
-
-  useEffect(() => {
-    fetchInsights();
   }, []);
 
+  useEffect(() => {
+    void fetchInsights();
+  }, [fetchInsights]);
+
   const handleCreateKey = async () => {
+    if (keyInFlightRef.current) return;
+    keyInFlightRef.current = true;
     setIsGeneratingKey(true);
-    try {
-      const res = await fetch('/api/v1/insights/keys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: 'usr_marc', tier: selectedTier }),
-      });
-      if (res.ok) fetchInsights();
-    } catch (err) {
-      console.error('Error generating key:', err);
-    } finally {
-      setIsGeneratingKey(false);
+    setKeysError(null);
+    setNewToken(null);
+
+    const res = await apiPost<{ api_key: ApiKey }>('/api/v1/insights/keys', {});
+
+    keyInFlightRef.current = false;
+    setIsGeneratingKey(false);
+
+    if (!res.ok || !res.data?.api_key) {
+      setKeysError(errorText(res, 'The key could not be issued.'));
+      return;
     }
+
+    setNewToken(res.data.api_key.key_token ?? null);
+    void fetchInsights();
   };
 
-  const handleCopy = (token: string) => {
-    navigator.clipboard.writeText(token);
-    setCopiedKey(token);
-    setTimeout(() => setCopiedKey(null), 2000);
+  const handleCopy = async (token: string) => {
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setKeysError('Clipboard access was blocked — select and copy the token manually.');
+    }
   };
 
   return (
@@ -141,10 +169,10 @@ export default function InsightsPage() {
 
             <div className="card rounded-card p-5">
               <Lock className="w-4 h-4 text-ink-3" aria-hidden />
-              <h3 className="text-sm font-semibold text-ink mt-2.5">Anti-scraping defenses</h3>
+              <h3 className="text-sm font-semibold text-ink mt-2.5">Authenticated access only</h3>
               <p className="text-dense text-ink-3 leading-relaxed mt-1.5">
-                Protected endpoints, HMAC request validation, and strict k-anonymity floors keep the
-                data secure.
+                Every aggregate endpoint requires a bearer key, is rate-limited per key, and stays
+                behind the k-anonymity floor.
               </p>
             </div>
           </div>
@@ -186,7 +214,7 @@ export default function InsightsPage() {
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-                      {war.faction_breakdown.map((f: any, fIdx: number) => (
+                      {war.faction_breakdown.map((f, fIdx) => (
                         <div key={fIdx} className="card rounded-card p-4">
                           <div className="micro-label text-ink-3 line-clamp-1">
                             {f.faction.split(' ')[0]}
@@ -204,7 +232,9 @@ export default function InsightsPage() {
                 ))
               ) : (
                 <div className="px-4 sm:px-6 py-10 text-center text-dense text-ink-3">
-                  No aggregated war votes available yet.
+                  {aggregatesLocked
+                    ? 'This endpoint needs an API key. Issue one below and call it with an Authorization: Bearer header.'
+                    : 'No aggregated war votes available yet.'}
                 </div>
               )}
             </div>
@@ -219,7 +249,8 @@ export default function InsightsPage() {
                   <span>Consumer demands by target brand</span>
                 </h2>
                 <p className="text-dense text-ink-3 mt-1">
-                  Aggregated paid demand volume backed by distinct verified consumer wallets.
+                  Aggregated paid demand volume, grouped by target. Groups below the k-anonymity
+                  floor are suppressed entirely rather than estimated.
                 </p>
               </div>
 
@@ -263,7 +294,9 @@ export default function InsightsPage() {
                         <div className="metric text-lg text-ink tnum leading-tight">
                           {item.total_backers.toLocaleString()}
                         </div>
-                        <div className="text-meta text-ink-3">k-anonymity verified</div>
+                        <div className="text-meta text-ink-3">
+                          {item.k_anonymity_verified ? 'Above k-anonymity floor' : 'Suppressed group'}
+                        </div>
                       </div>
 
                       <div className="pl-4 border-l border-line">
@@ -278,7 +311,9 @@ export default function InsightsPage() {
                 ))
               ) : (
                 <div className="px-4 sm:px-6 py-10 text-center text-dense text-ink-3">
-                  No aggregated brand demands available yet.
+                  {aggregatesLocked
+                    ? 'This endpoint needs an API key. Issue one below and call it with an Authorization: Bearer header.'
+                    : 'No aggregated brand demands available yet.'}
                 </div>
               )}
             </div>
@@ -293,13 +328,15 @@ export default function InsightsPage() {
                   <span>Your Insights API access tokens</span>
                 </h2>
                 <p className="text-dense text-ink-3 mt-1">
-                  Generate programmatic bearer keys for ingestion into Bloomberg, Snowflake, or
-                  custom data lakes.
+                  Bearer keys for programmatic access. New keys are issued on the{' '}
+                  <strong className="text-ink-2 font-semibold">starter</strong> tier — higher tiers
+                  are not self-serve yet.
                 </p>
               </div>
 
               <button
-                onClick={handleCreateKey}
+                type="button"
+                onClick={() => void handleCreateKey()}
                 disabled={isGeneratingKey}
                 className="btn btn-gold btn-sm shrink-0"
               >
@@ -307,6 +344,33 @@ export default function InsightsPage() {
                 <span>{isGeneratingKey ? 'Issuing key…' : 'Generate new API key'}</span>
               </button>
             </div>
+
+            {keysError && (
+              <div className="px-4 sm:px-6 py-3 border-b border-line flex flex-wrap items-center justify-between gap-3">
+                <span role="alert" className="text-dense text-down flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+                  {keysError}
+                </span>
+                <button type="button" onClick={() => void fetchInsights()} className="btn btn-ghost btn-xs">
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Retry</span>
+                </button>
+              </div>
+            )}
+
+            {/* The full token exists only in this response — the server stores a hash. */}
+            {newToken && (
+              <div className="px-4 sm:px-6 py-4 border-b border-line bg-gold/[0.06] space-y-2 animate-rise">
+                <div className="kicker kicker-gold">Copy this token now — it is not shown again</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="sunken rounded-control px-3 py-2 text-dense text-ink break-all">{newToken}</code>
+                  <button type="button" onClick={() => void handleCopy(newToken)} className="btn btn-ghost btn-xs">
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{copied ? 'Copied' : 'Copy token'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="divide-y divide-line">
               {apiKeys.length > 0 ? (
@@ -319,21 +383,15 @@ export default function InsightsPage() {
                       <span className="chip text-gold-text">{key.tier}</span>
 
                       <code className="sunken rounded-control px-3 py-2 text-dense tnum text-ink-2 truncate">
-                        {key.key_token.substring(0, 16)}••••••••••••••••
+                        {key.key_prefix}••••••••••••••••
                       </code>
 
-                      <span className="text-meta text-ink-3 tnum">
-                        {key.rate_limit_per_min} req/min
-                      </span>
+                      <span className="text-meta text-ink-3 tnum">{key.rate_limit_per_min} req/min</span>
                     </div>
 
-                    <button
-                      onClick={() => handleCopy(key.key_token)}
-                      className="btn btn-ghost btn-xs shrink-0"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>{copiedKey === key.key_token ? 'Copied' : 'Copy full token'}</span>
-                    </button>
+                    <span className="text-meta text-ink-3 shrink-0">
+                      {key.last_used_at ? 'Used' : 'Never used'}
+                    </span>
                   </div>
                 ))
               ) : (

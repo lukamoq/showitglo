@@ -68,10 +68,10 @@ export default function PrivacyPage() {
             <div>
               Email:{' '}
               <a
-                href="mailto:info@momentumq.com"
+                href="mailto:contact@showitglo.com"
                 className="text-gold-text underline underline-offset-4 hover:text-gold-bright transition-colors"
               >
-                info@momentumq.com
+                contact@showitglo.com
               </a>
             </div>
           </div>
@@ -129,10 +129,10 @@ export default function PrivacyPage() {
           <p>
             To exercise any of your privacy rights or file an inquiry, please contact our Data Protection desk at{' '}
             <a
-              href="mailto:info@momentumq.com"
+              href="mailto:contact@showitglo.com"
               className="text-gold-text underline underline-offset-4 hover:text-gold-bright transition-colors"
             >
-              info@momentumq.com
+              contact@showitglo.com
             </a>.
           </p>
         </div>

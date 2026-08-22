@@ -1,90 +1,186 @@
+import { randomBytes } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/db';
+
+import { checkDbRateLimit, createDebate, createPost, getCategory, getDebateBySlug, getDebates } from '@/lib/db/store';
+import { assertSameOrigin, getOrCreateSessionUser } from '@/lib/session';
+import { runGate0Moderation } from '@/lib/moderation/gate0';
+import { Debate, DebateSide } from '@/lib/types';
 import { slugify } from '@/lib/utils';
-import { Post, Debate, DebateSide } from '@/lib/types';
-import '@/lib/db/seed';
+import {
+  badOrigin,
+  badRequest,
+  failure,
+  optionalText,
+  rateLimited,
+  readJsonBody,
+  requiredText,
+} from '@/lib/http';
+
+export const dynamic = 'force-dynamic';
+
+const MIN_SIDES = 2;
+const MAX_SIDES = 6;
+const MAX_QUESTION = 200;
+const MAX_SIDE_LABEL = 80;
+const MAX_SIDE_DESCRIPTION = 500;
 
 export async function GET() {
-  const debates = db.getDebates();
-  return NextResponse.json({ debates });
+  try {
+    const debates = await getDebates();
+    return NextResponse.json({ debates });
+  } catch (err) {
+    return failure('debates.list.failed', err);
+  }
 }
 
+/**
+ * POST /api/v1/debates
+ *
+ * Opens a multi-sided war. Each side is backed by a real post, so the money
+ * and ranking machinery is the same one the main board uses.
+ *
+ * Every side post starts at `score_base = 0`. The previous implementation
+ * seeded them at `1000 + (n - i) * 100`, which put invented money on the board
+ * and handed the first-listed side a permanent head start.
+ */
 export async function POST(request: NextRequest) {
+  if (!assertSameOrigin(request)) return badOrigin();
+
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
+
+  const question = requiredText(body.question, { field: 'question', max: MAX_QUESTION });
+  if (!question.ok) return question.response;
+
+  const authorDisplay = optionalText(body.author_display, { field: 'author_display', max: 50 });
+  if (!authorDisplay.ok) return authorDisplay.response;
+
+  const categoryId = optionalText(body.category_id, { field: 'category_id', max: 64 });
+  if (!categoryId.ok) return categoryId.response;
+
+  const rawSides = body.sides;
+  if (!Array.isArray(rawSides) || rawSides.length < MIN_SIDES || rawSides.length > MAX_SIDES) {
+    return badRequest(
+      `sides must be an array of ${MIN_SIDES} to ${MAX_SIDES} entries.`,
+      'INVALID_FIELD',
+      { field: 'sides', min: MIN_SIDES, max: MAX_SIDES }
+    );
+  }
+
+  const sides: Array<{ label: string; description: string | null; key: string }> = [];
+  const usedKeys = new Set<string>();
+
+  for (let i = 0; i < rawSides.length; i++) {
+    const entry = rawSides[i];
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      return badRequest(`sides[${i}] must be an object with a label.`, 'INVALID_FIELD', { field: 'sides' });
+    }
+
+    const raw = entry as Record<string, unknown>;
+
+    const label = requiredText(raw.label, { field: `sides[${i}].label`, max: MAX_SIDE_LABEL });
+    if (!label.ok) return label.response;
+
+    const description = optionalText(raw.description, {
+      field: `sides[${i}].description`,
+      max: MAX_SIDE_DESCRIPTION,
+      multiline: true,
+    });
+    if (!description.ok) return description.response;
+
+    // Side keys index the debate, so they must be distinct even when two
+    // labels slugify to the same string ("Pro!" and "Pro?").
+    let key = slugify(label.value).slice(0, 40) || `side-${i + 1}`;
+    if (usedKeys.has(key)) key = `${key}-${i + 1}`;
+    usedKeys.add(key);
+
+    sides.push({ label: label.value, description: description.value, key });
+  }
+
+  const moderation = runGate0Moderation(
+    question.value,
+    sides.map((s) => `${s.label} ${s.description ?? ''}`).join(' ')
+  );
+  if (!moderation.passed) {
+    return NextResponse.json(
+      {
+        error: 'War failed automated moderation check',
+        code: 'MODERATION_BLOCKED',
+        flags: moderation.flags,
+        reason: moderation.reason,
+      },
+      { status: 422 }
+    );
+  }
+
   try {
-    const body = await request.json();
-    const { question, sides, author_display = 'Community Creator', category_id = 'global' } = body;
+    const user = await getOrCreateSessionUser();
 
-    if (!question || typeof question !== 'string' || question.trim().length === 0) {
-      return NextResponse.json({ error: 'Question is required' }, { status: 400 });
+    const limit = await checkDbRateLimit(`debates:u:${user.id}`, 2, 3600);
+    if (!limit.allowed) {
+      return rateLimited('You have reached the hourly limit for new wars.', limit.resetInMs);
     }
 
-    if (!sides || !Array.isArray(sides) || sides.length < 2) {
-      return NextResponse.json({ error: 'At least 2 sides/factions are required to create a war.' }, { status: 400 });
-    }
+    const category = await getCategory(categoryId.value || 'global');
+    if (!category) return badRequest('Unknown category.', 'INVALID_CATEGORY', { field: 'category_id' });
 
-    if (sides.length > 6) {
-      return NextResponse.json({ error: 'Maximum 6 sides allowed per war.' }, { status: 400 });
-    }
-
-    const debateId = `deb_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const slug = `${slugify(question).substring(0, 50)}-${debateId.substring(4, 8)}`;
+    const display = authorDisplay.value || user.alias || 'Anonymous';
+    const debateId = `deb_${Date.now().toString(36)}_${randomBytes(4).toString('hex')}`;
+    const slug = `${slugify(question.value).slice(0, 50) || 'war'}-${randomBytes(3).toString('hex')}`;
 
     const createdSides: DebateSide[] = [];
-
-    // Create underlying posts for each side
-    for (let i = 0; i < sides.length; i++) {
-      const sideItem = sides[i];
-      const sideKey = slugify(sideItem.label || `side-${i + 1}`);
-      const postId = `post_${debateId}_${sideKey}`;
-
-      const post: Post = {
-        id: postId,
-        slug: `${slug}-${sideKey}`,
-        author_id: 'usr_marc',
-        category_id,
+    for (const side of sides) {
+      // createPost mints its own UUID; the returned id is the only valid one.
+      const post = await createPost({
+        slug: `${slug}-${side.key}`,
+        author_id: user.id,
+        category_id: category.id,
         kind: 'opinion',
-        title: `⚔️ ${sideItem.label}: ${question}`,
-        body: sideItem.description || `Community thesis for ${sideItem.label}`,
+        title: `${side.label}: ${question.value}`,
+        body: side.description,
+        media_url: null,
         is_ad: false,
+        demand_target: null,
+        demand_target_user_id: null,
         counter_of: null,
-        author_display,
+        source_url: null,
+        source_platform: null,
+        author_display: display,
         status: 'live',
-        score_base: 1000 + (sides.length - i) * 100,
+        score_base: 0,
         total_raised_cents: 0,
         backers_count: 0,
         like_units: 0,
         streak_days: 0,
-        created_at: new Date().toISOString(),
-      };
-
-      db.createPost(post);
+      });
 
       createdSides.push({
         debate_id: debateId,
-        side_key: sideKey,
-        label: sideItem.label,
-        post_id: postId,
+        side_key: side.key,
+        label: side.label,
+        post_id: post.id,
       });
     }
 
-    const newDebate: Debate = {
+    const debate: Debate = {
       id: debateId,
       slug,
-      question: question.trim(),
+      question: question.value,
       status: 'live',
-      curated: true,
+      curated: false,
       is_political: false,
-      category_id,
-      sponsor_user_id: null,
-      sponsor_label: `Created by ${author_display}`,
+      category_id: category.id,
+      sponsor_user_id: user.id,
+      sponsor_label: `Created by ${display}`,
       created_at: new Date().toISOString(),
     };
 
-    db.createDebate(newDebate, createdSides);
+    await createDebate(debate, createdSides);
 
-    const fullDebate = db.getDebateBySlug(slug);
+    const fullDebate = await getDebateBySlug(slug);
     return NextResponse.json({ debate: fullDebate }, { status: 201 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return failure('debates.create.failed', err);
   }
 }
