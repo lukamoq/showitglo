@@ -5,10 +5,11 @@ import { Navbar } from '@/components/layout/Navbar';
 import { BoostDrawer } from '@/components/boost/BoostDrawer';
 import { FightPair, RankedPostView } from '@/lib/types';
 import { formatUSD } from '@/lib/utils';
-import { AlertCircle, RefreshCw, Swords, Zap } from 'lucide-react';
+import { AlertCircle, Plus, RefreshCw, Swords, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { HoldToLikeButton } from '@/components/interactions/HoldToLikeButton';
 import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
+import { CreateWarPostModal } from '@/components/wars/CreateWarPostModal';
 import { apiGet, errorText, recommendedTopUpCents } from '@/components/system/api';
 import { useWallet } from '@/components/system/useWallet';
 
@@ -16,6 +17,7 @@ export default function WarsPage() {
   const [fights, setFights] = useState<FightPair[]>([]);
   const [selectedPost, setSelectedPost] = useState<RankedPostView | null>(null);
   const [isBoostOpen, setIsBoostOpen] = useState(false);
+  const [isCreateWarOpen, setIsCreateWarOpen] = useState(false);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [topUpRecommendation, setTopUpRecommendation] = useState<number | undefined>(undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -65,6 +67,14 @@ export default function WarsPage() {
               <span className="tnum">Back your side with a 1¢ like</span> or a power boost to win
               the front page.
             </p>
+
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <button type="button" onClick={() => setIsCreateWarOpen(true)} className="btn btn-gold">
+                <Plus className="w-4 h-4" aria-hidden />
+                <span>Post a war</span>
+              </button>
+              <span className="text-meta text-ink-3">Two rival stances, published at once.</span>
+            </div>
           </div>
         </div>
 
@@ -289,15 +299,31 @@ export default function WarsPage() {
               <Swords className="w-8 h-8 text-ink-3 mx-auto mb-3" aria-hidden />
               <h2 className="text-xl font-bold tracking-tight text-ink">No active fights declared</h2>
               <p className="text-dense text-ink-3 mt-2 max-w-[46ch] mx-auto leading-relaxed">
-                Launch a rebuttal to any opinion on the board to initiate a head-to-head fight pair.
+                Post both sides of an argument at once, or launch a rebuttal to any opinion on the
+                board — either way you get a head-to-head fight pair.
               </p>
-              <Link href="/" className="btn btn-gold mt-6 inline-flex">
-                Explore the arena board
-              </Link>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                <button type="button" onClick={() => setIsCreateWarOpen(true)} className="btn btn-gold">
+                  <Plus className="w-4 h-4" aria-hidden />
+                  <span>Post a war</span>
+                </button>
+                <Link href="/" className="btn btn-ghost">
+                  Explore the arena board
+                </Link>
+              </div>
             </div>
           )}
         </div>
       </div>
+
+      <CreateWarPostModal
+        isOpen={isCreateWarOpen}
+        onClose={() => setIsCreateWarOpen(false)}
+        onWarCreated={() => {
+          void fetchFights();
+          void refreshWallet();
+        }}
+      />
 
       <BoostDrawer
         post={selectedPost}

@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Swords } from "lucide-react";
 import { formatUSD } from "@/lib/utils";
 import { Category, RankedPostView } from "@/lib/types";
 import { LiveVisitorsBadge } from "../live/LiveVisitorsBadge";
@@ -16,6 +17,7 @@ interface BoardHeaderProps {
   /** True while the first board fetch is in flight — reserves the card's space. */
   isLoading?: boolean;
   onOpenCreate?: () => void;
+  onOpenWar?: () => void;
 }
 
 export const BoardHeader: React.FC<BoardHeaderProps> = ({
@@ -26,6 +28,7 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
   leaders = [],
   isLoading = false,
   onOpenCreate,
+  onOpenWar,
 }) => {
   const incrementStrategy =
     category?.increment_strategy === "percent"
@@ -113,6 +116,16 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
               >
                 Take the stage — 1¢
               </button>
+              {onOpenWar && (
+                <button
+                  type="button"
+                  onClick={onOpenWar}
+                  className="btn btn-ghost"
+                >
+                  <Swords className="h-4 w-4" aria-hidden />
+                  <span>Post a war</span>
+                </button>
+              )}
               <a href="#board-table" className="btn btn-ghost">
                 See the full board
               </a>

@@ -9,6 +9,7 @@ import { BoardHeader, BoardMission } from '@/components/board/BoardHeader';
 import { BoardTable } from '@/components/board/BoardTable';
 import { BoostDrawer } from '@/components/boost/BoostDrawer';
 import { CreatePostModal } from '@/components/post/CreatePostModal';
+import { CreateWarPostModal } from '@/components/wars/CreateWarPostModal';
 import { CounterPostModal } from '@/components/post/CounterPostModal';
 import { WalletTopUpModal } from '@/components/wallet/WalletTopUpModal';
 import { apiGet, errorText, recommendedTopUpCents } from '@/components/system/api';
@@ -47,6 +48,7 @@ export default function HomePage() {
   const [selectedPostForCounter, setSelectedPostForCounter] = useState<RankedPostView | null>(null);
   const [isCounterOpen, setIsCounterOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreateWarOpen, setIsCreateWarOpen] = useState(false);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [topUpRecommendation, setTopUpRecommendation] = useState<number | undefined>(undefined);
   const [pulsingPostId, setPulsingPostId] = useState<string | null>(null);
@@ -155,6 +157,7 @@ export default function HomePage() {
         leaders={board.slice(0, 3)}
         isLoading={isLoading}
         onOpenCreate={() => setIsCreateOpen(true)}
+        onOpenWar={() => setIsCreateWarOpen(true)}
       />
 
       <div className="flex-1 pb-16">
@@ -220,6 +223,17 @@ export default function HomePage() {
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         onPostCreated={handlePostCreated}
+      />
+
+      <CreateWarPostModal
+        isOpen={isCreateWarOpen}
+        onClose={() => setIsCreateWarOpen(false)}
+        onWarCreated={() => {
+          void fetchBoardData();
+          void refreshWallet();
+          setToastMessage('War declared — both sides are on the board and fighting for rank.');
+          setTimeout(() => setToastMessage(null), 6000);
+        }}
       />
 
       <WalletTopUpModal
