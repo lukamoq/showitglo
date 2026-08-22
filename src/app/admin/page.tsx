@@ -7,16 +7,11 @@ import { formatUSD, formatCents, timeAgo } from '@/lib/utils';
 import {
   ShieldAlert,
   Sliders,
-  DollarSign,
   FileText,
-  Activity,
   CheckCircle,
   XCircle,
   AlertTriangle,
   RotateCcw,
-  Sparkles,
-  CreditCard,
-  Users,
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -121,25 +116,25 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#060709] text-white flex flex-col relative overflow-x-hidden">
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden">
       <Navbar />
 
-      <div className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+      <div className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
         {/* Header */}
-        <div className="pb-6 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="pb-6 border-b border-line flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 font-semibold uppercase">
-              <ShieldAlert className="w-3.5 h-3.5" />
-              <span>ShowItGlo Market Operations & Trust Center</span>
+            <div className="kicker flex items-center gap-2">
+              <ShieldAlert className="w-3.5 h-3.5" aria-hidden />
+              <span>ShowItGlo Market Operations &amp; Trust Center</span>
             </div>
-            <h1 className="text-2xl sm:text-4xl font-extrabold text-white mt-1">
-              Admin & Market Control
+            <h1 className="text-3xl font-bold tracking-tight text-ink mt-2">
+              Admin &amp; Market Control
             </h1>
           </div>
 
           <button
             onClick={handleRebase}
-            className="btn-glass-cyan px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+            className="btn btn-ghost btn-sm self-start sm:self-auto shrink-0"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Trigger Epoch Rebase</span>
@@ -147,142 +142,159 @@ export default function AdminPage() {
         </div>
 
         {statusMessage && (
-          <div className="mt-4 p-3 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs">
+          <div className="mt-4 rounded-card border border-up/30 bg-up/10 p-3 text-dense text-up animate-rise">
             {statusMessage}
           </div>
         )}
 
         {/* Deferred vs Recognized Revenue Bar (Blueprint §5 & §13) */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-          <div className="glass-card p-4 rounded-2xl border border-emerald-500/30">
-            <div className="text-[10px] text-slate-400 uppercase font-mono">Recognized Spend Revenue</div>
-            <div className="text-2xl font-black font-mono text-white mt-1">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+          <div className="card rounded-card p-4">
+            <div className="micro-label text-ink-3">Recognized Spend Revenue</div>
+            <div className="metric text-2xl text-gold-text tnum mt-1.5 leading-none">
               {formatUSD(stats.recognized_spend_dollars || 0)}
             </div>
-            <div className="text-[10px] text-emerald-400 mt-0.5">Interaction spend</div>
+            <div className="text-meta text-ink-3 mt-1.5">Interaction spend</div>
           </div>
 
-          <div className="glass-card p-4 rounded-2xl border border-white/10">
-            <div className="text-[10px] text-slate-400 uppercase font-mono">Unspent Wallet Float</div>
-            <div className="text-2xl font-black font-mono text-cyan-400 mt-1">
+          <div className="card rounded-card p-4">
+            <div className="micro-label text-ink-3">Unspent Wallet Float</div>
+            <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
               {formatUSD(stats.unspent_float_dollars || 0)}
             </div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Deferred Revenue Liability</div>
+            <div className="text-meta text-ink-3 mt-1.5">Deferred revenue liability</div>
           </div>
 
-          <div className="glass-card p-4 rounded-2xl border border-white/10">
-            <div className="text-[10px] text-slate-400 uppercase font-mono">Stripe Top-Up Fees</div>
-            <div className="text-2xl font-black font-mono text-rose-400 mt-1">
+          <div className="card rounded-card p-4">
+            <div className="micro-label text-ink-3">Stripe Top-Up Fees</div>
+            <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
               {formatUSD(stats.stripe_fees_dollars || 0)}
             </div>
-            <div className="text-[10px] text-slate-400 mt-0.5">~4-6% on prepaid volume</div>
+            <div className="text-meta text-ink-3 mt-1.5">~4–6% on prepaid volume</div>
           </div>
 
-          <div className="glass-card p-4 rounded-2xl border border-white/10">
-            <div className="text-[10px] text-slate-400 uppercase font-mono">Penny Army Backers</div>
-            <div className="text-2xl font-black font-mono text-amber-400 mt-1">
+          <div className="card rounded-card p-4">
+            <div className="micro-label text-ink-3">Penny Army Backers</div>
+            <div className="metric text-2xl text-ink tnum mt-1.5 leading-none">
               {(stats.distinct_backers || 0).toLocaleString()}
             </div>
-            <div className="text-[10px] text-amber-300/80 mt-0.5">{(stats.total_likes_units || 0).toLocaleString()} penny likes</div>
+            <div className="text-meta text-ink-3 mt-1.5 tnum">
+              {(stats.total_likes_units || 0).toLocaleString()} penny likes
+            </div>
           </div>
         </div>
 
         {/* 2-Column Section: Market Mechanics & Moderation */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
           {/* Column 1: Market Mechanics */}
-          <div className="glass-panel p-6 rounded-3xl border border-white/10">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
-              <Sliders className="w-4 h-4 text-amber-400" />
-              <span>Increment Strategy & Decay Engine</span>
-            </h3>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2 mb-4">
+              <Sliders className="w-4 h-4 text-ink-3" aria-hidden />
+              <h2 className="text-xl font-bold tracking-tight text-ink">
+                Increment Strategy &amp; Decay Engine
+              </h2>
+            </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                  Leaderboard Displacement Rule:
-                </label>
-                <div className="space-y-2">
-                  {[
-                    { id: 'percent', label: 'Percentage (+10%, min $0.50)', desc: 'Recommended default. Scales with stakes.' },
-                    { id: 'fixed', label: 'Fixed Increment (+ $0.10)', desc: 'High-frequency micro-fights.' },
-                    { id: 'expo', label: 'Exponential (× 2.0)', desc: 'Doubling Day spectacle events only.' },
-                  ].map((st) => (
-                    <label
-                      key={st.id}
-                      className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
-                        selectedStrategy === st.id
-                          ? 'bg-amber-500/20 border-amber-500/50 text-white'
-                          : 'glass-card border-white/10 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="strategy"
-                        checked={selectedStrategy === st.id}
-                        onChange={() => setSelectedStrategy(st.id)}
-                        className="mt-0.5 accent-amber-500"
-                      />
-                      <div>
-                        <span className="font-bold text-xs block text-white">{st.label}</span>
-                        <span className="text-[11px] text-slate-400">{st.desc}</span>
-                      </div>
-                    </label>
-                  ))}
+            <div className="panel rounded-card p-5 flex-1">
+              <div className="space-y-6">
+                <div>
+                  <span className="kicker block mb-2">Leaderboard displacement rule</span>
+
+                  <div className="sunken rounded-control overflow-hidden divide-y divide-line">
+                    {[
+                      { id: 'percent', label: 'Percentage (+10%, min $0.50)', desc: 'Recommended default. Scales with stakes.' },
+                      { id: 'fixed', label: 'Fixed Increment (+ $0.10)', desc: 'High-frequency micro-fights.' },
+                      { id: 'expo', label: 'Exponential (× 2.0)', desc: 'Doubling Day spectacle events only.' },
+                    ].map((st) => {
+                      const isActive = selectedStrategy === st.id;
+                      return (
+                        <label
+                          key={st.id}
+                          className={`relative flex items-start gap-3 px-3.5 py-3 cursor-pointer transition-colors duration-200 ${
+                            isActive ? 'bg-gold/[0.10]' : 'hover:bg-white/[0.04]'
+                          }`}
+                        >
+                          {isActive && (
+                            <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-gold" />
+                          )}
+                          <input
+                            type="radio"
+                            name="strategy"
+                            checked={isActive}
+                            onChange={() => setSelectedStrategy(st.id)}
+                            className="mt-1 accent-gold"
+                          />
+                          <span className="min-w-0">
+                            <span className={`block text-dense font-semibold ${isActive ? 'text-gold-text' : 'text-ink'}`}>
+                              {st.label}
+                            </span>
+                            <span className="block text-meta text-ink-3">{st.desc}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                  Half-Life Decay Window:
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { hours: 24, label: '24 Hours (Fast)' },
-                    { hours: 168, label: '7 Days (Standard)' },
-                    { hours: 720, label: '30 Days (Slow)' },
-                  ].map((h) => (
-                    <button
-                      key={h.hours}
-                      onClick={() => setHalfLifeHours(h.hours)}
-                      className={`py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
-                        halfLifeHours === h.hours
-                          ? 'bg-amber-500 text-black font-bold shadow-md'
-                          : 'glass-card text-slate-300 hover:text-white'
-                      }`}
-                    >
-                      {h.label}
-                    </button>
-                  ))}
+                <div>
+                  <span className="kicker block mb-2">Half-life decay window</span>
+
+                  <div className="seg w-full">
+                    {[
+                      { hours: 24, label: '24 Hours (Fast)' },
+                      { hours: 168, label: '7 Days (Standard)' },
+                      { hours: 720, label: '30 Days (Slow)' },
+                    ].map((h) => (
+                      <button
+                        key={h.hours}
+                        onClick={() => setHalfLifeHours(h.hours)}
+                        className={`seg-item flex-1 justify-center text-center !whitespace-normal tnum ${
+                          halfLifeHours === h.hours ? 'seg-item-active' : ''
+                        }`}
+                      >
+                        {h.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <button
-                onClick={handleUpdateStrategy}
-                className="w-full btn-glass-gold py-2.5 rounded-xl text-xs font-bold cursor-pointer"
-              >
-                Save Market Parameters
-              </button>
+                <button onClick={handleUpdateStrategy} className="btn btn-gold w-full">
+                  Save Market Parameters
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Column 2: Moderation Queue */}
-          <div className="glass-panel p-6 rounded-3xl border border-white/10">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
-              <AlertTriangle className="w-4 h-4 text-rose-400" />
-              <span>Gate 1 Visibility-Tiered Moderation</span>
-            </h3>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle className="w-4 h-4 text-ink-3" aria-hidden />
+              <h2 className="text-xl font-bold tracking-tight text-ink">
+                Gate 1 Visibility-Tiered Moderation
+              </h2>
+              <span className="chip text-steel tnum">{pendingPosts.length}</span>
+            </div>
 
             {pendingPosts.length > 0 ? (
-              <div className="space-y-3">
+              <div className="panel rounded-card overflow-hidden divide-y divide-line flex-1">
                 {pendingPosts.map((post) => (
-                  <div key={post.id} className="p-4 rounded-xl glass-card border border-rose-500/30 text-xs">
-                    <span className="font-bold text-white block text-sm mb-1">{post.title}</span>
-                    <p className="text-slate-300 text-xs mb-3">{post.body || 'No description'}</p>
+                  <div
+                    key={post.id}
+                    className="relative px-4 sm:px-5 py-4 transition-colors duration-200 hover:bg-white/[0.04]"
+                  >
+                    <span aria-hidden className="absolute left-0 top-0 bottom-0 w-[3px] bg-down" />
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-[15px] text-ink">{post.title}</span>
+                      <span className="chip text-steel">Pending</span>
+                    </div>
+
+                    <p className="text-dense text-ink-3 mt-1 mb-3">{post.body || 'No description'}</p>
+
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => handleModerate(post.id, 'approve')}
-                        className="btn-glass-cyan px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        className="btn btn-ghost btn-xs !text-up hover:border-up/40"
                       >
                         <CheckCircle className="w-3 h-3" />
                         Approve
@@ -290,7 +302,7 @@ export default function AdminPage() {
 
                       <button
                         onClick={() => handleModerate(post.id, 'remove')}
-                        className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1 hover:bg-rose-500/30 cursor-pointer"
+                        className="btn btn-ghost btn-xs !text-down hover:border-down/40"
                       >
                         <XCircle className="w-3 h-3" />
                         Tombstone Remove
@@ -300,36 +312,54 @@ export default function AdminPage() {
                 ))}
               </div>
             ) : (
-              <div className="p-8 text-center glass-card rounded-2xl">
-                <CheckCircle className="w-8 h-8 text-emerald-400 mx-auto mb-2 opacity-70" />
-                <span className="text-xs text-slate-300 font-semibold block">Moderation Queue Clear</span>
-                <span className="text-[11px] text-slate-500">All live opinions have passed automated Gate 0 screening.</span>
+              <div className="panel rounded-card p-8 text-center flex-1 flex flex-col items-center justify-center">
+                <CheckCircle className="w-7 h-7 text-up mb-3" aria-hidden />
+                <span className="text-sm font-semibold text-ink block">Moderation Queue Clear</span>
+                <span className="text-meta text-ink-3 mt-1 block max-w-[42ch]">
+                  All live opinions have passed automated Gate 0 screening.
+                </span>
               </div>
             )}
           </div>
         </div>
 
         {/* Append-Only Audit Trail */}
-        <div className="mt-8">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
-            <FileText className="w-4 h-4 text-cyan-400" />
-            <span>Append-Only Market Audit Trail</span>
-          </h3>
+        <div className="mt-12">
+          <div className="flex items-center gap-2 mb-4">
+            <FileText className="w-4 h-4 text-ink-3" aria-hidden />
+            <h2 className="text-xl font-bold tracking-tight text-ink">
+              Append-Only Market Audit Trail
+            </h2>
+            <span className="chip text-steel tnum">{auditLogs.length}</span>
+          </div>
 
-          <div className="glass-panel p-5 rounded-3xl border border-white/10 space-y-2 max-h-72 overflow-y-auto font-mono text-xs">
-            {auditLogs.map((log) => (
-              <div key={log.id} className="p-2.5 rounded-xl glass-card flex items-center justify-between text-[11px]">
-                <div className="flex items-center gap-2">
-                  <span className="px-1.5 py-0.5 rounded bg-white/10 text-amber-300 font-bold uppercase">
-                    {log.action}
-                  </span>
-                  <span className="text-slate-300">
-                    {log.entity_type} {log.entity_id ? `(${log.entity_id.substring(0, 12)}...)` : ''}
-                  </span>
-                </div>
-                <span className="text-slate-500">{timeAgo(log.created_at)}</span>
-              </div>
-            ))}
+          <div className="panel rounded-card overflow-hidden">
+            <div className="grid grid-cols-[7rem_1fr_4.5rem] sm:grid-cols-[9.5rem_1fr_6rem] gap-3 sm:gap-4 items-center px-4 sm:px-5 py-2 border-b border-line bg-black/20">
+              <div className="micro-label text-ink-3">Action</div>
+              <div className="micro-label text-ink-3">Entity</div>
+              <div className="micro-label text-ink-3 text-right">When</div>
+            </div>
+
+            <div className="divide-y divide-line max-h-72 overflow-y-auto">
+              {auditLogs.length > 0 ? (
+                auditLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="grid grid-cols-[7rem_1fr_4.5rem] sm:grid-cols-[9.5rem_1fr_6rem] gap-3 sm:gap-4 items-center px-4 sm:px-5 py-2.5 text-dense transition-colors duration-200 hover:bg-white/[0.04]"
+                  >
+                    <span className="min-w-0 overflow-hidden">
+                      <span className="chip text-gold-text">{log.action}</span>
+                    </span>
+                    <span className="text-ink-2 truncate">
+                      {log.entity_type} {log.entity_id ? `(${log.entity_id.substring(0, 12)}...)` : ''}
+                    </span>
+                    <span className="text-meta text-ink-3 text-right">{timeAgo(log.created_at)}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-dense text-ink-3 py-10 text-center">No audit entries yet.</p>
+              )}
+            </div>
           </div>
         </div>
       </div>

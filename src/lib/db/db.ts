@@ -1050,4 +1050,4 @@ class AttentionMarketDB {
 
 const globalForDB = globalThis as unknown as { attentionDB: AttentionMarketDB };
 export const db = globalForDB.attentionDB || new AttentionMarketDB();
-if (process.env.NODE_ENV !== 'production') globalForDB.attentionDB = db;
+globalForDB.attentionDB = db;

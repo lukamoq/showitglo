@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/db';
+import { verifyAdminAuth, createUnauthorizedResponse } from '@/lib/auth';
 import '@/lib/db/seed';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!verifyAdminAuth(request)) {
+    return createUnauthorizedResponse();
+  }
+
   const reports = db.getReports();
   const allPosts = db.getAllPosts();
   const actions = db.getModerationActions();
@@ -15,6 +20,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!verifyAdminAuth(request)) {
+    return createUnauthorizedResponse();
+  }
+
   try {
     const body = await request.json();
     const { post_id, action, reason, actor_id = 'usr_admin' } = body;

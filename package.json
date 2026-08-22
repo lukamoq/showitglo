@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:math": "node scripts/test-engine.mjs"
+    "test:math": "node scripts/test-engine.mjs",
+    "db:init": "node scripts/init-db.mjs",
+    "verify:prod": "node scripts/verify-production.mjs",
+    "test:all": "npm run test:math && npm run verify:prod"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",

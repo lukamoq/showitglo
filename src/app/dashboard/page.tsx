@@ -123,7 +123,7 @@ export default function DashboardPage() {
 
             <button
               onClick={handleGdprErasure}
-              className="btn btn-ghost btn-sm text-down hover:border-down/40"
+              className="btn btn-ghost btn-sm !text-down hover:border-down/40"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">GDPR Erasure</span>
@@ -140,7 +140,7 @@ export default function DashboardPage() {
         {/* 1-Tap Outbid Reclaim Alerts */}
         {reclaimAlerts.length > 0 && (
           <div className="mt-8">
-            <h2 className="kicker text-down flex items-center gap-1.5 mb-3">
+            <h2 className="kicker !text-down flex items-center gap-1.5 mb-3">
               <AlertCircle className="w-3.5 h-3.5" aria-hidden />
               <span>Outbid Alerts — Defend Your Rank</span>
             </h2>
@@ -164,7 +164,7 @@ export default function DashboardPage() {
 
                   <button
                     onClick={() => handle1TapReclaim(alert)}
-                    className="btn btn-ghost btn-sm text-gold-text hover:border-gold/40 shrink-0 self-start sm:self-auto"
+                    className="btn btn-ghost btn-sm !text-gold-text hover:border-gold/40 shrink-0 self-start sm:self-auto"
                   >
                     <Zap className="w-3.5 h-3.5" />
                     <span className="tnum">
@@ -290,7 +290,7 @@ export default function DashboardPage() {
                             setSelectedPostForBoost(post);
                             setIsBoostOpen(true);
                           }}
-                          className="btn btn-ghost btn-xs text-gold-text hover:border-gold/40"
+                          className="btn btn-ghost btn-xs !text-gold-text hover:border-gold/40"
                         >
                           <Zap className="w-3 h-3" />
                           <span>Boost</span>

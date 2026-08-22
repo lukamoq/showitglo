@@ -48,4 +48,6 @@ class EventBus {
   }
 }
 
-export const eventBus = new EventBus();
+const globalForEventBus = globalThis as unknown as { eventBus?: EventBus };
+export const eventBus = globalForEventBus.eventBus || new EventBus();
+globalForEventBus.eventBus = eventBus;

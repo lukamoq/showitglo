@@ -36,10 +36,9 @@ const config: Config = {
         foreground: "#F6F7FA",
       },
       fontFamily: {
-        sans: ["var(--font-figtree)", "ui-sans-serif", "system-ui", "sans-serif"],
-        display: ["var(--font-figtree)", "ui-sans-serif", "system-ui", "sans-serif"],
-        // "mono" is a register (tabular numerals), not a different family
-        mono: ["var(--font-figtree)", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["Figtree", "var(--font-figtree)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["Figtree", "var(--font-figtree)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["Figtree", "var(--font-figtree)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       fontSize: {
         micro: ["10px", { lineHeight: "14px" }],

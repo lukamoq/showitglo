@@ -3,6 +3,7 @@ import { db } from '@/lib/db/db';
 import { Post, PostKind } from '@/lib/types';
 import { slugify } from '@/lib/utils';
 import { runGate0Moderation } from '@/lib/moderation/gate0';
+import { rateLimiter, getClientIp } from '@/lib/rateLimit';
 import '@/lib/db/seed';
 
 function detectPlatform(url: string): string {
@@ -25,6 +26,16 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 20 posts per minute per IP
+  const ip = getClientIp(request);
+  const rateLimitResult = rateLimiter.check(`post_${ip}`, 20, 60000);
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      { error: 'Posting rate limit exceeded. Please wait a moment.', retry_after_ms: rateLimitResult.resetInMs },
+      { status: 429 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { title, content, author_display, category_id, initial_boost_cents, kind = 'opinion', demand_target, source_url } = body;
@@ -81,21 +92,31 @@ export async function POST(request: NextRequest) {
 
     db.createPost(newPost);
 
-    // If an initial boost is attached, immediately settle it
+    // If an initial boost is attached, settle it
     if (initial_boost_cents && initial_boost_cents >= 10) {
       const wallet = db.getWallet(newPost.author_id);
       if (wallet.balance_cents < initial_boost_cents) {
-        db.topupWallet(newPost.author_id, Math.max(500, initial_boost_cents));
+        if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_CREDITS) {
+          db.topupWallet(newPost.author_id, Math.max(500, initial_boost_cents));
+          db.recordInteraction({
+            postId: newPost.id,
+            userId: newPost.author_id,
+            kind: initial_boost_cents >= 1000 ? 'power' : initial_boost_cents >= 100 ? 'super' : 'boost',
+            units: initial_boost_cents,
+            amountCents: initial_boost_cents,
+            payerDisplay: newPost.author_display,
+          });
+        }
+      } else {
+        db.recordInteraction({
+          postId: newPost.id,
+          userId: newPost.author_id,
+          kind: initial_boost_cents >= 1000 ? 'power' : initial_boost_cents >= 100 ? 'super' : 'boost',
+          units: initial_boost_cents,
+          amountCents: initial_boost_cents,
+          payerDisplay: newPost.author_display,
+        });
       }
-
-      db.recordInteraction({
-        postId: newPost.id,
-        userId: newPost.author_id,
-        kind: initial_boost_cents >= 1000 ? 'power' : initial_boost_cents >= 100 ? 'super' : 'boost',
-        units: initial_boost_cents,
-        amountCents: initial_boost_cents,
-        payerDisplay: newPost.author_display,
-      });
     }
 
     return NextResponse.json({ post: newPost }, { status: 201 });

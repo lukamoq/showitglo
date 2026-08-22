@@ -51,4 +51,6 @@ class PresenceTracker {
   }
 }
 
-export const presenceTracker = new PresenceTracker();
+const globalForPresence = globalThis as unknown as { presenceTracker?: PresenceTracker };
+export const presenceTracker = globalForPresence.presenceTracker || new PresenceTracker();
+globalForPresence.presenceTracker = presenceTracker;

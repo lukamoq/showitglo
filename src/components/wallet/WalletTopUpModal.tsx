@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, CreditCard, ShieldCheck, Sparkles, Check, ArrowRight, Zap, Smartphone, Lock } from 'lucide-react';
-import { formatUSD, formatCents } from '@/lib/utils';
+import { X, CreditCard, Zap, Lock } from 'lucide-react';
+import { formatCents } from '@/lib/utils';
 import confetti from 'canvas-confetti';
 
 interface WalletTopUpModalProps {
@@ -65,7 +65,7 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
           particleCount: 70,
           spread: 65,
           origin: { y: 0.6 },
-          colors: ['#10b981', '#06b6d4', '#fbbf24', '#ffffff'],
+          colors: ['#F0A824', '#FFC53D', '#FFFFFF'],
         });
         setTimeout(() => {
           onTopUpSuccess(data.wallet.balance_cents);
@@ -84,44 +84,45 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(4,6,12,0.65)] backdrop-blur-md">
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-md glass-panel rounded-3xl border border-white/20 p-6 sm:p-8 shadow-2xl overflow-hidden">
+      <div className="relative z-10 w-full max-w-md panel rounded-modal p-6 sm:p-8 overflow-hidden animate-rise">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/10">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-mono text-emerald-400 font-semibold uppercase">
+        <div className="flex items-start justify-between gap-3 pb-4 border-b border-line">
+          <div className="min-w-0">
+            <div className="kicker-gold kicker flex items-center gap-1.5">
               <CreditCard className="w-3.5 h-3.5" />
-              <span>Prepaid Arena Wallet</span>
+              <span>Prepaid arena wallet</span>
             </div>
-            <h3 className="text-xl font-bold text-white mt-0.5">
-              Refill Your Balance
+            <h3 className="text-lg font-bold tracking-tight text-ink mt-1">
+              Refill your balance
             </h3>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full glass-card hover:bg-white/20 text-slate-400 hover:text-white cursor-pointer"
+            className="btn btn-ghost btn-xs !px-1.5 shrink-0"
+            aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Current Balance Banner */}
-        <div className="my-4 p-4 rounded-2xl glass-card border border-emerald-500/30 bg-emerald-950/20 flex items-center justify-between">
+        <div className="my-4 sunken rounded-control p-4 flex items-center justify-between gap-3">
           <div>
-            <span className="text-[11px] text-slate-400 uppercase font-mono block">Current Balance</span>
-            <span className="text-2xl font-black font-mono text-white tabular-nums">
+            <span className="micro-label text-ink-3 block">Current balance</span>
+            <span className="metric text-2xl text-ink tnum">
               {formatCents(currentBalanceCents)}
             </span>
           </div>
 
           <div className="text-right">
-            <span className="text-[11px] text-emerald-400 font-mono font-semibold block">
-              100% Refundable
+            <span className="text-meta text-up font-medium block">
+              100% refundable
             </span>
-            <span className="text-[10px] text-slate-500">
+            <span className="text-micro text-ink-3">
               Closed-loop credits
             </span>
           </div>
@@ -129,8 +130,8 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
 
         {/* Top-Up Amount Chips */}
         <div className="space-y-2.5">
-          <label className="text-xs font-semibold text-slate-300 block">
-            Select Top-Up Amount:
+          <label className="kicker block mb-1.5">
+            Select top-up amount
           </label>
 
           <div className="grid grid-cols-4 gap-2">
@@ -138,10 +139,10 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
               <button
                 key={cents}
                 onClick={() => handleSelectChip(cents)}
-                className={`py-2.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                className={`py-2 rounded-control text-dense tnum font-semibold transition-colors cursor-pointer ${
                   selectedCents === cents && !customDollars
-                    ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20 font-black'
-                    : 'glass-card text-slate-300 hover:text-white hover:border-white/20'
+                    ? 'bg-gold/[0.16] text-gold-text shadow-[inset_0_0_0_1px_rgb(240_168_36/0.35)]'
+                    : 'sunken text-ink-3 hover:text-ink'
                 }`}
               >
                 ${cents / 100}
@@ -151,7 +152,7 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
 
           {/* Custom Input */}
           <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3 text-dense tnum">
               $
             </span>
             <input
@@ -161,15 +162,15 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
               value={customDollars}
               onChange={(e) => handleCustomChange(e.target.value)}
               placeholder="Custom amount ($1 min, $50 max)..."
-              className="w-full pl-8 pr-4 py-2 rounded-xl glass-card border border-white/10 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-emerald-400/50"
+              className="field pl-7 text-dense tnum"
             />
           </div>
         </div>
 
         {/* 1-Tap Fast Checkout Rails: Apple Pay & Link */}
         <div className="mt-5 space-y-2">
-          <label className="text-[11px] font-semibold text-slate-400 uppercase font-mono block">
-            Instant 1-Tap Checkout:
+          <label className="kicker block mb-1.5">
+            Instant 1-tap checkout
           </label>
 
           {/* Apple Pay Button */}
@@ -177,20 +178,20 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
             type="button"
             onClick={() => handleExecuteTopUp('apple_pay')}
             disabled={isProcessing}
-            className="w-full py-3 px-4 rounded-2xl bg-white hover:bg-slate-100 text-black font-semibold text-sm flex items-center justify-center gap-2 transition-all shadow-xl hover:scale-[1.01] active:scale-[0.99] cursor-pointer disabled:opacity-50"
+            className="w-full py-3 px-4 rounded-control bg-white hover:bg-white/90 text-black font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:-translate-y-px active:scale-[0.97] cursor-pointer disabled:opacity-50"
           >
             {isProcessing && successMethod === 'apple_pay' ? (
-              <span className="flex items-center gap-2 font-mono text-xs text-black">
+              <span className="flex items-center gap-2 text-dense text-black">
                 <span className="w-4 h-4 rounded-full border-2 border-black border-t-transparent animate-spin" />
                 Authorizing Face ID / Touch ID...
               </span>
             ) : (
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-600 font-mono">Pay with</span>
+                <span className="text-dense text-black/60">Pay with</span>
                 <span className="font-bold text-base flex items-center tracking-tight">
-                  <span className="text-lg leading-none -mt-0.5"></span>Pay
+                  <span className="text-lg leading-none -mt-0.5"></span>Pay
                 </span>
-                <span className="text-xs font-mono text-slate-500 ml-1">({formatCents(selectedCents)})</span>
+                <span className="text-dense tnum text-black/50 ml-1">({formatCents(selectedCents)})</span>
               </div>
             )}
           </button>
@@ -200,54 +201,54 @@ export const WalletTopUpModal: React.FC<WalletTopUpModalProps> = ({
             type="button"
             onClick={() => handleExecuteTopUp('link')}
             disabled={isProcessing}
-            className="w-full py-3 px-4 rounded-2xl bg-[#00D66F] hover:bg-[#00c063] text-[#0A2540] font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-xl hover:scale-[1.01] active:scale-[0.99] cursor-pointer disabled:opacity-50"
+            className="w-full py-3 px-4 rounded-control bg-[#00D66F] hover:bg-[#00c063] text-[#0A2540] font-bold text-sm flex items-center justify-center gap-2 transition-all hover:-translate-y-px active:scale-[0.97] cursor-pointer disabled:opacity-50"
           >
             {isProcessing && successMethod === 'link' ? (
-              <span className="flex items-center gap-2 font-mono text-xs text-[#0A2540]">
+              <span className="flex items-center gap-2 text-dense text-[#0A2540]">
                 <span className="w-4 h-4 rounded-full border-2 border-[#0A2540] border-t-transparent animate-spin" />
-                Processing 1-Click Link...
+                Processing 1-click Link...
               </span>
             ) : (
               <div className="flex items-center gap-1.5">
                 <Zap className="w-4 h-4 fill-current" />
                 <span>Pay with</span>
-                <span className="font-black tracking-tight underline underline-offset-2">Link</span>
-                <span className="text-xs font-mono opacity-80">({formatCents(selectedCents)})</span>
+                <span className="font-extrabold tracking-tight underline underline-offset-2">Link</span>
+                <span className="text-dense tnum opacity-80">({formatCents(selectedCents)})</span>
               </div>
             )}
           </button>
         </div>
 
         {/* Divider */}
-        <div className="my-3 flex items-center gap-3">
-          <div className="flex-1 h-px bg-white/10" />
-          <span className="text-[10px] text-slate-500 font-mono uppercase">Or Standard Card</span>
-          <div className="flex-1 h-px bg-white/10" />
+        <div className="my-4 flex items-center gap-3">
+          <div className="flex-1 h-px bg-line" />
+          <span className="micro-label text-ink-3">Or standard card</span>
+          <div className="flex-1 h-px bg-line" />
         </div>
 
         {/* Card Top-Up Button */}
         <button
           onClick={() => handleExecuteTopUp('card')}
           disabled={isProcessing || selectedCents < 500}
-          className="w-full btn-glass-dark py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+          className="btn btn-ghost btn-sm w-full"
         >
           {isProcessing && successMethod === 'card' ? (
             <span>Charging card...</span>
           ) : (
             <>
-              <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Credit or Debit Card ({formatCents(selectedCents)})</span>
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Credit or debit card ({formatCents(selectedCents)})</span>
             </>
           )}
         </button>
 
         {/* Trust & Safety Footer */}
-        <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-500">
-          <div className="flex items-center gap-1">
-            <Lock className="w-3 h-3 text-emerald-400" />
-            <span>256-Bit Stripe Encryption</span>
+        <div className="mt-4 pt-3 border-t border-line flex items-center justify-between gap-3 micro-label text-ink-3">
+          <div className="flex items-center gap-1.5">
+            <Lock className="w-3 h-3" />
+            <span>256-bit Stripe encryption</span>
           </div>
-          <span className="text-emerald-400/90 font-mono">0% Platform Fee</span>
+          <span className="text-up">0% platform fee</span>
         </div>
       </div>
     </div>

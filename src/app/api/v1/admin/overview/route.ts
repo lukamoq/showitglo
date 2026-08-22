@@ -1,8 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/db';
+import { verifyAdminAuth, createUnauthorizedResponse } from '@/lib/auth';
 import '@/lib/db/seed';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!verifyAdminAuth(request)) {
+    return createUnauthorizedResponse();
+  }
+
   const stats = db.getAdminStats();
   const categories = db.getAllCategories();
   const reports = db.getReports();

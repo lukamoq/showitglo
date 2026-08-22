@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/db';
 import { InteractionKind } from '@/lib/types';
+import { rateLimiter, getClientIp } from '@/lib/rateLimit';
 import '@/lib/db/seed';
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 60 boosts per minute per IP
+  const ip = getClientIp(request);
+  const rateLimitResult = rateLimiter.check(`boost_${ip}`, 60, 60000);
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please wait a moment before boosting again.', retry_after_ms: rateLimitResult.resetInMs },
+      { status: 429 }
+    );
+  }
+
   try {
     const body = await request.json();
     const {
@@ -33,10 +44,24 @@ export async function POST(request: NextRequest) {
     const finalKind: InteractionKind =
       finalAmountCents >= 1000 ? 'power' : finalAmountCents >= 100 ? 'super' : 'boost';
 
-    // Auto-topup wallet if needed for seamless testing
     const wallet = db.getWallet(payer_id);
+
+    // If insufficient balance in production, require top-up
     if (wallet.balance_cents < finalAmountCents) {
-      db.topupWallet(payer_id, Math.max(500, finalAmountCents - wallet.balance_cents + 1000));
+      if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_DEMO_CREDITS) {
+        return NextResponse.json(
+          {
+            error: `Insufficient wallet balance ($${(wallet.balance_cents / 100).toFixed(2)} available, $${(finalAmountCents / 100).toFixed(2)} required). Please top up.`,
+            code: 'INSUFFICIENT_WALLET_BALANCE',
+            required_cents: finalAmountCents,
+            balance_cents: wallet.balance_cents,
+          },
+          { status: 402 }
+        );
+      } else {
+        // Development / Demo auto-topup for immediate testing
+        db.topupWallet(payer_id, Math.max(500, finalAmountCents - wallet.balance_cents + 1000));
+      }
     }
 
     // Execute atomic interaction in DB engine
