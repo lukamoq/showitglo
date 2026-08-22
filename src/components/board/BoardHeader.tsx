@@ -16,6 +16,8 @@ interface BoardHeaderProps {
   leaders?: RankedPostView[];
   /** True while the first board fetch is in flight — reserves the card's space. */
   isLoading?: boolean;
+  /** True when the board could not be loaded at all. */
+  loadFailed?: boolean;
   onOpenCreate?: () => void;
   onOpenWar?: () => void;
 }
@@ -27,6 +29,7 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
   distinctPayers,
   leaders = [],
   isLoading = false,
+  loadFailed = false,
   onOpenCreate,
   onOpenWar,
 }) => {
@@ -51,12 +54,11 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
       label: "Price to beat #1",
       value: formatUSD(topPrice),
       foot: incrementStrategy,
-      gold: true,
     },
     {
       label: "Backing the board",
       value: formatUSD(totalVolume),
-      foot: "real money, publicly staked",
+      foot: "spent by readers, not paid out",
     },
     {
       label: "Backers",
@@ -79,33 +81,25 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <LiveVisitorsBadge variant="compact" />
-              <span className="kicker">Global arena · open board</span>
+              <span className="kicker">Public opinion board</span>
             </div>
 
-            <h1 className="display-hero text-ink mt-5">
-              <span className="reveal-line">
-                <span style={{ animationDelay: "0.05s" }}>
-                  The public stage
-                </span>
-              </span>
-              <span className="reveal-line">
-                <span style={{ animationDelay: "0.15s" }}>where opinions</span>
-              </span>
-              <span className="reveal-line">
-                <span
-                  className="text-gold-text"
-                  style={{ animationDelay: "0.25s" }}
-                >
-                  fight for rank.
-                </span>
-              </span>
+            {/* Says what the site is, in the words a stranger would use.
+                The previous headline ("The public stage where opinions fight
+                for rank") described a metaphor, not a mechanism — and a
+                metaphor is exactly what a reader discounts when they are
+                deciding whether a site that asks for money is real. */}
+            <h1 className="display-statement text-ink mt-5 max-w-[19ch]">
+              Opinions, ranked by what people pay to back them.
             </h1>
 
             <p className="lead mt-5">
-              No stage, no algorithm, no censors.{" "}
-              <span className="tnum">A like is 1¢, a boost is 10¢</span> — say
-              it out loud or put paid crowd weight behind a demand, and the
-              market decides what rises.
+              Anyone can post a stance. A like costs{" "}
+              <span className="tnum">1¢</span>, a boost{" "}
+              <span className="tnum">10¢</span>, and the total spent sets the
+              order of the board. Nothing is paid out to the people posting: the
+              money buys rank, and whatever you have not spent is refundable at
+              face value.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -114,7 +108,7 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
                 onClick={onOpenCreate}
                 className="btn btn-gold"
               >
-                Take the stage — 1¢
+                Post a stance — 1¢
               </button>
               {onOpenWar && (
                 <button
@@ -130,6 +124,37 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
                 See the full board
               </a>
             </div>
+
+            {/* Every line here is already true and already written down in the
+                terms — it was just buried three clicks away, which is the one
+                place it cannot do any work. A site that asks for money and
+                will not say who runs it or what happens to unspent credit
+                reads as a scam whether or not it is one. */}
+            <ul className="mt-7 flex flex-col gap-2 text-meta text-ink-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
+              <li>
+                <a
+                  href="/terms#unspent-credits"
+                  className="hover:text-ink transition-colors"
+                >
+                  Unspent credit refunded at face value
+                </a>
+              </li>
+              <li className="hidden sm:block" aria-hidden>
+                <span className="h-3 w-px bg-line-strong block" />
+              </li>
+              <li>Balances never expire</li>
+              <li className="hidden sm:block" aria-hidden>
+                <span className="h-3 w-px bg-line-strong block" />
+              </li>
+              <li>
+                <a
+                  href="/impressum"
+                  className="hover:text-ink transition-colors"
+                >
+                  MomentumQ GmbH, Zurich
+                </a>
+              </li>
+            </ul>
           </div>
 
           {/* Right — what people are actually saying.
@@ -141,8 +166,7 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
           {showLeaderCard && (
             <div className="panel rounded-card overflow-hidden w-full">
               <div className="px-4 py-2.5 border-b border-line flex items-center justify-between gap-3">
-                <span className="kicker">Winning right now</span>
-                <span className="led led-gold" aria-hidden />
+                <span className="kicker">Top of the board</span>
               </div>
 
               {isLoading ? (
@@ -206,68 +230,105 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
             stacks, and anything placed here in the left column pushes the
             real stances down another screenful. Numbers are the supporting
             argument, so they read after the thing they support. */}
-        <dl className="mt-9 flex flex-wrap items-end gap-x-10 gap-y-4 border-t border-line pt-5">
-          {/* Held back until the real figures land. The placeholder metrics are
+        {/* Withheld when the board did not load. The placeholder metrics are all
+            zero, and "$0.00 · 0 backers" printed above a network error states
+            figures that were never fetched — on a page whose whole problem is
+            looking untrustworthy, inventing numbers is the last thing to do. */}
+        {!loadFailed && (
+          <dl className="mt-9 flex flex-wrap items-end gap-x-10 gap-y-4 border-t border-line pt-5">
+            {/* Held back until the real figures land. The placeholder metrics are
               all zero, and "$0.00 backed · 0 backers" flashed at a first-time
               visitor on a slow connection reads as a dead site. */}
-          {isLoading
-            ? [0, 1, 2].map((i) => (
-                <div key={i} className="w-28" aria-hidden>
-                  <div className="skeleton h-3 w-20 rounded-control" />
-                  <div className="skeleton mt-2 h-6 w-24 rounded-control" />
-                  <div className="skeleton mt-2 h-3 w-28 rounded-control" />
-                </div>
-              ))
-            : stats.map((stat) => (
-                <div key={stat.label}>
-                  <dt className="micro-label text-ink-3">{stat.label}</dt>
-                  <dd
-                    className={`metric text-[1.375rem] tnum mt-1.5 leading-none ${
-                      stat.gold ? "text-gold-text" : "text-ink"
-                    }`}
-                  >
-                    {stat.value}
-                  </dd>
-                  <dd className="text-meta text-ink-3 mt-1.5">{stat.foot}</dd>
-                </div>
-              ))}
-        </dl>
+            {isLoading
+              ? [0, 1, 2].map((i) => (
+                  <div key={i} className="w-28" aria-hidden>
+                    <div className="skeleton h-3 w-20 rounded-control" />
+                    <div className="skeleton mt-2 h-6 w-24 rounded-control" />
+                    <div className="skeleton mt-2 h-3 w-28 rounded-control" />
+                  </div>
+                ))
+              : stats.map((stat) => (
+                  <div key={stat.label}>
+                    <dt className="micro-label text-ink-3">{stat.label}</dt>
+                    <dd className="metric text-[1.375rem] tnum mt-1.5 leading-none text-ink">
+                      {stat.value}
+                    </dd>
+                    <dd className="text-meta text-ink-3 mt-1.5">{stat.foot}</dd>
+                  </div>
+                ))}
+          </dl>
+        )}
       </div>
     </div>
   );
 };
 
 /**
- * The manifesto, moved out of the hero.
+ * How the board actually works.
  *
- * It used to sit between the headline and the board, which meant every first
- * visit paid for two columns of prose before reaching a single opinion. It
- * reads better once the board above it has already made the argument, so it
- * now renders after the table.
+ * This replaces a two-part manifesto ("Say things out loud" / "Change
+ * things") whose copy asserted values instead of explaining mechanics. A
+ * reader deciding whether a site that takes money is legitimate is not
+ * reassured by a mission statement; they are reassured by being told, in
+ * order and without adjectives, what their money does — including the parts
+ * that are not in the site's favour.
+ *
+ * Every claim below is the operative wording of the published terms.
  */
 export const BoardMission: React.FC = () => {
-  const mission = [
+  const steps = [
     {
-      title: "Say things out loud",
-      body: "No black-box algorithm decides who gets seen. Conviction goes on the permanent public record, and every like and penny boost commands front-page rank.",
+      step: "1",
+      title: "Post a stance, or back one",
+      body: "Anyone can post. Backing an existing stance costs 1¢ for a like or 10¢ for a boost, taken from prepaid credit.",
     },
     {
-      title: "Change things",
-      body: "Petitions get ignored because signatures are free. Here a demand carries the money behind it, publicly and permanently.",
+      step: "2",
+      title: "The board ranks by money paid",
+      body: "No editor and no algorithm picks the order, and placement is not for sale separately. Scores decay on a fixed seven-day half-life, so nothing holds the top on old spending.",
+    },
+    {
+      step: "3",
+      title: "Spent is spent — unspent is yours",
+      body: "Being outbid is not refunded: someone can outspend you a minute later. Credit you have not spent is refundable at face value, with no deadline and no reason required.",
     },
   ];
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-      <div className="mt-14 border-t border-line pt-7 grid grid-cols-1 md:grid-cols-2 gap-x-14 gap-y-7">
-        {mission.map((item) => (
-          <div key={item.title} className="max-w-[46ch]">
-            <h2 className="text-[15px] font-semibold text-ink">{item.title}</h2>
-            <p className="text-dense text-ink-3 leading-relaxed mt-1.5">
-              {item.body}
-            </p>
-          </div>
-        ))}
+      <div className="mt-14 border-t border-line pt-7">
+        <h2 className="kicker">How it works</h2>
+        <div className="mt-5 grid grid-cols-1 gap-x-12 gap-y-7 md:grid-cols-3">
+          {steps.map((item) => (
+            <div key={item.step} className="max-w-[42ch]">
+              <div className="flex items-baseline gap-2.5">
+                <span
+                  className="metric tnum text-ink-3 text-[0.9375rem]"
+                  aria-hidden
+                >
+                  {item.step}
+                </span>
+                <h3 className="text-[15px] font-semibold text-ink">
+                  {item.title}
+                </h3>
+              </div>
+              <p className="text-dense text-ink-3 leading-relaxed mt-1.5">
+                {item.body}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-meta text-ink-3 mt-7">
+          Payments are handled by Stripe. Full detail in the{" "}
+          <a
+            href="/terms"
+            className="text-ink-2 underline underline-offset-4 hover:text-ink"
+          >
+            terms
+          </a>
+          , including refunds and the EU/EEA 14-day withdrawal right.
+        </p>
       </div>
     </div>
   );

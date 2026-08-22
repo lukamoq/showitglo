@@ -20,9 +20,8 @@ export const WarTicker: React.FC<WarTickerProps> = ({ fights = [] }) => {
   return (
     <div className="w-full border-b border-line bg-bg-sunken/70 py-2 px-4">
       <div className="max-w-6xl mx-auto flex items-center gap-4 tape text-ink-2">
-        <div className="micro-label text-down flex items-center gap-1.5 shrink-0">
-          <span className="led led-down" aria-hidden />
-          <span>Live fights</span>
+        <div className="micro-label text-ink-3 shrink-0">
+          <span>Contested now</span>
         </div>
 
         <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-3 min-w-0">
@@ -41,18 +40,18 @@ export const WarTicker: React.FC<WarTickerProps> = ({ fights = [] }) => {
                   #{fight.post_a.rank} {fight.post_a.title.slice(0, 32)}
                   {fight.post_a.title.length > 32 ? '…' : ''}
                 </span>
-                <span className="tnum text-gold-text">{formatScore(fight.post_a.display_score)}</span>
+                <span className="tnum text-ink-3">{formatScore(fight.post_a.display_score)}</span>
 
-                <Swords className="w-3 h-3 text-down shrink-0" aria-hidden />
+                <Swords className="w-3 h-3 text-ink-3 shrink-0" aria-hidden />
 
                 <span className="text-ink font-medium">
                   #{fight.post_b.rank} {fight.post_b.title.slice(0, 32)}
                   {fight.post_b.title.length > 32 ? '…' : ''}
                 </span>
-                <span className="tnum text-gold-text">{formatScore(fight.post_b.display_score)}</span>
+                <span className="tnum text-ink-3">{formatScore(fight.post_b.display_score)}</span>
 
                 {fight.lead_changes_24h > 0 && (
-                  <span className="chip text-down">
+                  <span className="chip text-ink-3">
                     {fight.lead_changes_24h} lead {fight.lead_changes_24h === 1 ? 'change' : 'changes'} (24h)
                   </span>
                 )}

@@ -156,6 +156,7 @@ export default function HomePage() {
         distinctPayers={metrics.distinct_payers}
         leaders={board.slice(0, 3)}
         isLoading={isLoading}
+        loadFailed={Boolean(loadError)}
         onOpenCreate={() => setIsCreateOpen(true)}
         onOpenWar={() => setIsCreateWarOpen(true)}
       />

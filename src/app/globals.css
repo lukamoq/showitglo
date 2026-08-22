@@ -406,6 +406,18 @@
   font-weight: 700;
 }
 
+/* A hero that carries a full sentence rather than three stacked fragments.
+   Smaller than .display-hero on purpose: a plain declarative line has to fit
+   and balance on its own, and an oversized face forces the fragile manual
+   line-breaking it replaces. */
+.display-statement {
+  font-size: clamp(2.125rem, 4.2vw, 3.25rem);
+  line-height: 1.08;
+  letter-spacing: -0.026em;
+  font-weight: 700;
+  text-wrap: balance;
+}
+
 /* Page-title register — one step below the hero, same discipline. */
 .display-2 {
   font-size: clamp(1.875rem, 3.4vw, 2.625rem);
