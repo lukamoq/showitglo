@@ -7,20 +7,30 @@ interface LiveVisitorsBadgeProps {
   variant?: 'badge' | 'compact' | 'pill';
 }
 
+interface PresenceSnapshot {
+  live: number;
+  /** Distinct visitors ever counted — null when the server can't report it. */
+  visitors: number | null;
+}
+
 /**
  * Real presence, or nothing.
  *
  * `GET /api/v1/live/stats` counts heartbeats from the last 90 seconds, so the
- * viewer is included once their own heartbeat lands. When the endpoint is
+ * viewer is included once their own heartbeat lands, and reports the durable
+ * visitor total counted from the same heartbeats. When the endpoint is
  * unavailable the badge unmounts rather than inventing a number — a fake
  * "12 online" is the single fastest way to lose a visitor's trust.
+ *
+ * The two numbers fail independently: an older deployment that has the live
+ * count but no visitors table still renders the live half alone.
  */
 export const LiveVisitorsBadge: React.FC<LiveVisitorsBadgeProps> = ({
   className = '',
   variant = 'badge',
 }) => {
-  // null until the server reports a real number — never a made-up starting count.
-  const [liveCount, setLiveCount] = useState<number | null>(null);
+  // null until the server reports real numbers — never a made-up starting count.
+  const [presence, setPresence] = useState<PresenceSnapshot | null>(null);
 
   useEffect(() => {
     // Generate or retrieve persistent anonymous session token
@@ -38,7 +48,7 @@ export const LiveVisitorsBadge: React.FC<LiveVisitorsBadgeProps> = ({
     let cancelled = false;
 
     const tick = async () => {
-      // Register presence, then read the authoritative count from /live/stats.
+      // Register presence, then read the authoritative counts from /live/stats.
       try {
         await fetch('/api/v1/live/heartbeat', {
           method: 'POST',
@@ -47,18 +57,27 @@ export const LiveVisitorsBadge: React.FC<LiveVisitorsBadgeProps> = ({
           body: JSON.stringify({ session_id: sessionId }),
         });
       } catch {
-        // presence is best-effort; the count below is what matters
+        // presence is best-effort; the counts below are what matter
       }
 
       try {
         const res = await fetch('/api/v1/live/stats', { credentials: 'same-origin' });
         if (!res.ok) throw new Error('stats unavailable');
         const data = await res.json();
-        const count = data?.live_visitors_now;
-        if (!cancelled) setLiveCount(typeof count === 'number' && count >= 0 ? count : null);
+        const live = data?.live_visitors_now;
+        const visitors = data?.visitors_total;
+        if (cancelled) return;
+        setPresence(
+          typeof live === 'number' && live >= 0
+            ? {
+                live,
+                visitors: typeof visitors === 'number' && visitors >= 0 ? visitors : null,
+              }
+            : null
+        );
       } catch {
         // Presence is unavailable — hide the badge rather than invent a number.
-        if (!cancelled) setLiveCount(null);
+        if (!cancelled) setPresence(null);
       }
     };
 
@@ -71,25 +90,46 @@ export const LiveVisitorsBadge: React.FC<LiveVisitorsBadgeProps> = ({
     };
   }, []);
 
-  if (liveCount === null) return null;
+  if (presence === null) return null;
+
+  const { live, visitors } = presence;
 
   /* Both registers are plural-safe by construction — "1 live", "1 in the
      arena" — and the screen-reader string is spelled out either way. */
-  const spoken = `${liveCount} ${liveCount === 1 ? 'person is' : 'people are'} in the arena right now`;
+  const spoken =
+    `${live} ${live === 1 ? 'person is' : 'people are'} in the arena right now` +
+    (visitors === null
+      ? ''
+      : `, ${visitors.toLocaleString()} ${visitors === 1 ? 'visitor' : 'visitors'} in total`);
 
   if (variant === 'compact') {
     return (
       <span
         className={`inline-flex items-center gap-2 text-meta ${className}`}
-        title="Live visitors in the arena right now"
+        title={
+          visitors === null
+            ? 'Live visitors in the arena right now'
+            : 'Live visitors in the arena right now · total visitors counted so far'
+        }
       >
         <span className="led led-up" aria-hidden />
         <span className="tnum font-semibold text-ink" aria-hidden>
-          {liveCount.toLocaleString()}
+          {live.toLocaleString()}
         </span>
         <span className="micro-label text-ink-3" aria-hidden>
           live
         </span>
+        {visitors !== null && (
+          <>
+            <span aria-hidden className="h-3 w-px bg-line-strong" />
+            <span className="tnum font-semibold text-ink" aria-hidden>
+              {visitors.toLocaleString()}
+            </span>
+            <span className="micro-label text-ink-3" aria-hidden>
+              visitors
+            </span>
+          </>
+        )}
         <span className="sr-only">{spoken}</span>
       </span>
     );
@@ -98,13 +138,25 @@ export const LiveVisitorsBadge: React.FC<LiveVisitorsBadgeProps> = ({
   return (
     <span
       className={`inline-flex items-center gap-2 rounded-control border border-line bg-white/[0.03] px-2.5 py-1 ${className}`}
-      title="Live visitors in the arena right now"
+      title={
+        visitors === null
+          ? 'Live visitors in the arena right now'
+          : 'Live visitors in the arena right now · total visitors counted so far'
+      }
     >
       <span className="led led-up" aria-hidden />
       <span className="text-dense text-ink-2" aria-hidden>
-        <span className="tnum font-semibold text-ink">{liveCount.toLocaleString()}</span> in the
-        arena
+        <span className="tnum font-semibold text-ink">{live.toLocaleString()}</span> in the arena
       </span>
+      {visitors !== null && (
+        <>
+          <span aria-hidden className="h-3 w-px bg-line-strong" />
+          <span className="text-dense text-ink-2" aria-hidden>
+            <span className="tnum font-semibold text-ink">{visitors.toLocaleString()}</span>{' '}
+            {visitors === 1 ? 'visitor' : 'visitors'}
+          </span>
+        </>
+      )}
       <span className="sr-only">{spoken}</span>
     </span>
   );

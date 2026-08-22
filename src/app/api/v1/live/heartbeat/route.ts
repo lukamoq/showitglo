@@ -1,7 +1,7 @@
 import { createHmac } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getPresenceCount, heartbeat } from '@/lib/db/store';
+import { getPresenceCount, getVisitorTotals, heartbeat } from '@/lib/db/store';
 import { getSessionSecret } from '@/lib/env';
 import { assertSameOrigin, getSessionUser, presenceKeyFor } from '@/lib/session';
 import { getClientIp, rateLimiter } from '@/lib/rateLimit';
@@ -53,9 +53,19 @@ export async function POST(request: NextRequest) {
     const key = session ? presenceKeyFor(session.id) : anonymousPresenceKey(request);
 
     await heartbeat(key);
-    const liveVisitors = await getPresenceCount();
+    const [liveVisitors, visitors] = await Promise.all([
+      getPresenceCount(),
+      // Same shape as /live/stats so a caller can use either; the cumulative
+      // half is optional and never fails the heartbeat.
+      getVisitorTotals().catch(() => null),
+    ]);
 
-    return NextResponse.json({ live_visitors_now: liveVisitors, status: 'active' });
+    return NextResponse.json({
+      live_visitors_now: liveVisitors,
+      visitors_total: visitors?.total ?? null,
+      visitors_today: visitors?.today ?? null,
+      status: 'active',
+    });
   } catch (err) {
     return failure('presence.heartbeat.failed', err);
   }

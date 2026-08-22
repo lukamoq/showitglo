@@ -3370,12 +3370,26 @@ const PRESENCE_GC_SECONDS = 600;
 
 export async function heartbeat(sessionKey: string): Promise<void> {
   if (!sessionKey) return;
+  const key = sessionKey.slice(0, 128);
+
   await queryPg(
     `INSERT INTO presence_heartbeats (session_key, last_seen)
      VALUES ($1, NOW())
      ON CONFLICT (session_key) DO UPDATE SET last_seen = NOW()`,
-    [sessionKey.slice(0, 128)]
+    [key]
   );
+
+  // The durable half of the same beat. presence_heartbeats is GC'd, so it
+  // could never answer "how many people have been here"; this row survives.
+  await queryPg(
+    `INSERT INTO visitors (visitor_key, first_seen, last_seen)
+     VALUES ($1, NOW(), NOW())
+     ON CONFLICT (visitor_key) DO UPDATE SET last_seen = NOW()`,
+    [key]
+  ).catch(() => {
+    // A missing visitors table (schema not yet migrated) must not take the
+    // live count down with it — presence above has already been recorded.
+  });
 
   // Opportunistic GC on ~1% of heartbeats — cheap enough to never need a cron.
   if (Math.random() < 0.01) {
@@ -3392,6 +3406,43 @@ export async function getPresenceCount(): Promise<number> {
     [PRESENCE_WINDOW_SECONDS]
   );
   return num(res.rows[0]?.n);
+}
+
+export interface VisitorTotals {
+  /** Distinct visitors ever recorded. */
+  total: number;
+  /** Distinct visitors seen since midnight UTC. */
+  today: number;
+}
+
+/**
+ * Cached because `/api/v1/live/stats` is polled every 12 seconds by every open
+ * tab, while these two counts move slowly. A ten-second memo collapses a
+ * roomful of pollers into roughly one aggregate per instance per window.
+ */
+let visitorTotalsCache: { at: number; value: VisitorTotals } | null = null;
+const VISITOR_TOTALS_TTL_MS = 10_000;
+
+export async function getVisitorTotals(): Promise<VisitorTotals> {
+  const now = Date.now();
+  if (visitorTotalsCache && now - visitorTotalsCache.at < VISITOR_TOTALS_TTL_MS) {
+    return visitorTotalsCache.value;
+  }
+
+  const res = await queryPg(
+    `SELECT COUNT(*) AS total,
+            COUNT(*) FILTER (
+              WHERE last_seen >= date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+            ) AS today
+       FROM visitors`
+  );
+
+  const value: VisitorTotals = {
+    total: num(res.rows[0]?.total),
+    today: num(res.rows[0]?.today),
+  };
+  visitorTotalsCache = { at: now, value };
+  return value;
 }
 
 // ==========================================================================

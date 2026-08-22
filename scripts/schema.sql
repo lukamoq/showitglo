@@ -454,6 +454,24 @@ CREATE TABLE IF NOT EXISTS presence_heartbeats (
 CREATE INDEX IF NOT EXISTS idx_presence_last_seen ON presence_heartbeats(last_seen);
 
 -- ----------------------------------------------------------
+-- 19b. VISITOR REGISTRY
+--      presence_heartbeats is garbage-collected every ten minutes, so it
+--      can only ever answer "who is here right now". This table is the
+--      durable half of the same signal: one row per distinct presence key,
+--      kept for as long as the board exists, so "how many people have been
+--      here at all" is a real aggregate rather than a process-local counter.
+--      The key is the same HMAC'd value presence uses — no additional
+--      information about a visitor is stored here.
+-- ----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS visitors (
+  visitor_key         TEXT PRIMARY KEY,
+  first_seen          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_visitors_last_seen ON visitors(last_seen);
+
+-- ----------------------------------------------------------
 -- 20. CROSS-INSTANCE RATE LIMIT COUNTERS
 --     Fixed-window counters. window_start is floor(epoch / window) * window.
 -- ----------------------------------------------------------

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { getBoardStats, getPresenceCount } from '@/lib/db/store';
+import { getBoardStats, getPresenceCount, getVisitorTotals } from '@/lib/db/store';
 import { failure } from '@/lib/http';
 
 export const dynamic = 'force-dynamic';
@@ -9,18 +9,29 @@ export const dynamic = 'force-dynamic';
  * GET /api/v1/live/stats
  *
  * The honest live numbers: concurrent visitors counted from real heartbeats in
- * the last 90 seconds, and board totals that are SQL aggregates.
+ * the last 90 seconds, cumulative visitors counted from the durable half of
+ * the same heartbeat, and board totals that are SQL aggregates.
  *
- * The old response carried a `total_views_all_time` counter that reset with
- * every process and only ever counted one instance's traffic. It is gone
- * rather than approximated — a number nobody can reproduce is not a metric.
+ * `visitors_total` / `visitors_today` are distinct presence keys, not page
+ * views — the deliberate successor to the old `total_views_all_time`, which
+ * reset with every process and only ever counted one instance's traffic. A
+ * number nobody can reproduce is not a metric; these two are one `COUNT` over
+ * a table that survives deploys.
  */
 export async function GET() {
   try {
-    const [liveVisitors, stats] = await Promise.all([getPresenceCount(), getBoardStats('global')]);
+    const [liveVisitors, visitors, stats] = await Promise.all([
+      getPresenceCount(),
+      // Cumulative counts are additive, not load-bearing: if the visitors
+      // table is unreachable the live number still ships on its own.
+      getVisitorTotals().catch(() => null),
+      getBoardStats('global'),
+    ]);
 
     return NextResponse.json({
       live_visitors_now: liveVisitors,
+      visitors_total: visitors?.total ?? null,
+      visitors_today: visitors?.today ?? null,
       board: {
         live_posts: stats.live_posts,
         total_raised_cents: stats.total_raised_cents,
